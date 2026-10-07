@@ -22,6 +22,15 @@
   const PAD = "#30d158";
   const MARGIN = "#ff9f0a";
   const GAP = "#bf5af2";
+  /* One colour per absolute move, so page, screenshot and prompt all point at the same element. Blue stays the UI's. */
+  const MOVE_COLORS = [
+    ["orange", "#ff9f0a"],
+    ["pink", "#ff375f"],
+    ["green", "#30d158"],
+    ["purple", "#bf5af2"],
+    ["cyan", "#64d2ff"],
+    ["yellow", "#ffd60a"],
+  ];
   const SIDES = ["top", "right", "bottom", "left"];
 
   /* ---------- state ---------- */
@@ -1010,6 +1019,12 @@
     if (fresh) {
       edit.dx = edit.dy = 0;
       edit.clone = floatCopy(el, edit.from.rect);
+      /* Lowest move number not in use, so numbers and colours stay stable while you work. */
+      const used = new Set([...moveEdits.values()].filter((m) => m !== edit && m.mode === "absolute").map((m) => m.n));
+      edit.n = 1;
+      while (used.has(edit.n)) edit.n++;
+      [edit.colorName, edit.color] = MOVE_COLORS[(edit.n - 1) % MOVE_COLORS.length];
+      Object.assign(edit.clone.style, { outline: `2px solid ${edit.color}`, outlineOffset: "2px" });
       el.style.visibility = "hidden";
     }
     edit.dx = dx;
@@ -1179,12 +1194,21 @@
       const e = list[i];
       if (!e) return (g.style.display = "none");
       const v = viewRect(e.from.rect);
-      Object.assign(g.style, { display: "block", left: `${v.left}px`, top: `${v.top}px`, width: `${v.width}px`, height: `${v.height}px` });
+      Object.assign(g.style, {
+        display: "block",
+        left: `${v.left}px`,
+        top: `${v.top}px`,
+        width: `${v.width}px`,
+        height: `${v.height}px`,
+        outlineColor: e.color,
+        background: `repeating-linear-gradient(45deg, ${e.color}2e 0 2px, transparent 2px 7px)`,
+      });
     });
     insertLine.style.display = dropBox.style.display = mtag.style.display = "none";
     if (tool !== "move") return;
-    const tagAt = (rect, html) => {
+    const tagAt = (rect, html, color = BLUE) => {
       mtag.innerHTML = html;
+      mtag.style.background = color;
       const below = rect.bottom + 28 < innerHeight;
       Object.assign(mtag.style, { display: "block", left: `${rect.left}px`, top: below ? `${rect.bottom + 6}px` : `${Math.max(4, rect.top - 26)}px` });
     };
@@ -1216,7 +1240,7 @@
     const edit = moveEdits.get(selected);
     if (edit?.mode === "absolute") {
       const sign = (n) => (n > 0 ? `+${n}` : `${n}`);
-      tagAt(r, `x ${sign(edit.dx)}  y ${sign(edit.dy)} <span class="into">· absolute</span>`);
+      tagAt(r, `Move ${edit.n} <span class="into">· x ${sign(edit.dx)}  y ${sign(edit.dy)}</span>`, edit.color);
     } else if (edit?.mode === "flow" && edit.to) {
       const t = edit.to;
       tagAt(r, t.container === edit.from.container ? `position ${edit.from.index + 1} → ${t.index + 1}` : `position ${t.index + 1} of ${t.count} <span class="into">· in ${name(t.container)}</span>`);
@@ -1277,12 +1301,12 @@
         const t = Math.min(dx ? b.width / 2 / Math.abs(dx) : Infinity, dy ? b.height / 2 / Math.abs(dy) : Infinity, 1);
         return [cx + dx * t, cy + dy * t];
       };
-      const pill = (text, x, y) => {
+      const pill = (text, x, y, color) => {
         ctx.font = '600 11px ui-sans-serif, system-ui, -apple-system, sans-serif';
         const w = ctx.measureText(text).width + 10;
         const px0 = Math.min(Math.max(2, x), W - w - 2);
         const py0 = Math.min(Math.max(2, y), H - 18);
-        ctx.fillStyle = BLUE;
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.roundRect(px0, py0, w, 16, 5);
         ctx.fill();
@@ -1319,7 +1343,7 @@
         };
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        for (const [color, width] of [["rgba(255,255,255,.9)", 6], [BLUE, 2.5]]) {
+        for (const [color, width] of [["rgba(255,255,255,.9)", 6], [e.color, 2.5]]) {
           ctx.strokeStyle = color;
           ctx.fillStyle = color;
           ctx.lineWidth = width;
@@ -1331,8 +1355,8 @@
           if (width > 3) ctx.stroke();
           ctx.fill();
         }
-        pill("from", a.left - x0, a.top - y0 - 20);
-        pill("to", b.left - x0, b.top - y0 - 20);
+        pill(`Move ${e.n} · from`, a.left - x0, a.top - y0 - 20, e.color);
+        pill(`Move ${e.n}`, b.left - x0, b.top - y0 - 20, e.color);
       }
       return await new Promise((res) => canvas.toBlob(res, "image/png"));
     } catch {
@@ -1544,8 +1568,10 @@
       how.push(`Layout moves: change the JSX to match. A reorder means changing the order of the children; if they come from a .map() over data, reorder the data instead. A move into another container means moving the element's JSX (with its props and wiring) into that parent at that position. Keep everything in normal flow: no absolute positioning, no negative margins. Tidy spacing the move leaves behind.`);
     }
     if (absolutes.length) {
-      const list = absolutes.map(([el, e]) => `${++i}. <${e.tag}> ${where(e)}\n${describeAbsolute(el, e)}`);
-      sections.push(`Positioned absolutely\n\n${list.join("\n\n")}${shotAttached ? "\n\nI attached a screenshot: dashed boxes are where these were, arrows point to where I put them." : ""}`);
+      const list = absolutes
+        .sort(([, a], [, b]) => a.n - b.n)
+        .map(([el, e]) => `${++i}. Move ${e.n} (${e.colorName}${shotAttached ? " in the screenshot" : ""}): <${e.tag}> ${where(e)}\n${describeAbsolute(el, e)}`);
+      sections.push(`Positioned absolutely\n\n${list.join("\n\n")}${shotAttached ? "\n\nI attached a screenshot. Each move has its own colour: the dashed box labelled “Move N · from” is where it was, the outlined element labelled “Move N” is where I put it, and an arrow in the same colour joins them." : ""}`);
       how.push(`Absolute moves: I chose free positioning for these. Make each position: absolute inside the named container (give the container position: relative if it has none) at those offsets, taking it out of the flow. If it moved to another container, move its JSX there too. ${tokenRule("spacing")}`);
     }
     return `I tweaked the design directly in the browser on ${location.href}. Apply these changes to the source code.

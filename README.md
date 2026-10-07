@@ -71,7 +71,9 @@ it one slot. Claude is told to change the JSX order or parent, never to position
 Turn on **Absolute** to drag anywhere instead. The element floats above everything, a dashed
 placeholder keeps its old spot, and the prompt asks for position: absolute inside the container it
 landed in, with offsets. With **Screenshot** on, Copy prompt first grabs this tab (Chrome asks you to
-share it), crops to where things moved from and to, draws arrows, and copies that image. Paste it, then
+share it), crops to where things moved from and to, and copies that image. Each absolute move gets its own
+colour (orange, pink, green, ...): its placeholder and outline use it on the page, and in the screenshot a
+matching arrow joins "Move N · from" to "Move N". The prompt names each move by number and colour. Paste it, then
 ⌘↵ again for the text. Screen capture does not work in embedded previews such as the Claude app's
 browser pane; there you get the prompt only.
 
