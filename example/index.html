@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>design-toolkit example</title>
+    <style>
+      body { margin: 0; padding: 48px 24px; background: #141414; color: rgba(255,255,255,.9); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+      main { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+      h1 { margin: 0; font-size: 40px; font-weight: 400; letter-spacing: -0.035em; line-height: 1; }
+      p { margin: 0; color: rgba(255,255,255,.5); }
+      .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+      .chip { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.05); border: 0; color: inherit; font: inherit; }
+      .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .card { padding: 20px; border-radius: 20px; background: rgba(255,255,255,.05); display: flex; flex-direction: column; gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Design toolkit</h1>
+      <p>Press T, R, S or V, tweak anything on this page, then ⌘↵ to copy the prompt.</p>
+      <div class="chips">
+        <button class="chip">Inputs</button>
+        <button class="chip">Actions</button>
+        <button class="chip">Navigation</button>
+        <button class="chip">Feedback</button>
+      </div>
+      <div class="cards">
+        <article class="card"><strong>Switch</strong><span>Toggles and steppers.</span></article>
+        <article class="card"><strong>Toast</strong><span>Status that comes and goes.</span></article>
+      </div>
+    </main>
+    <script src="../toolkit.js"></script>
+  </body>
+</html>
