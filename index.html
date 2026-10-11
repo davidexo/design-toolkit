@@ -77,21 +77,9 @@
       }
       ol.steps p { margin: 0; color: var(--ink-2); }
       ol.steps strong { color: var(--ink); font-weight: 520; }
-      .option { padding: 20px; border-radius: 20px; background: var(--surface); }
-      .option + .option { margin-top: 12px; }
-      .option h3 { margin: 0 0 4px; font-size: 15px; font-weight: 520; display: flex; align-items: center; gap: 8px; }
-      .option p { margin: 0 0 14px; color: var(--ink-2); }
-      .tag { font-size: 11px; font-weight: 460; padding: 3px 7px; border-radius: 999px; background: var(--accent); color: #fff; }
-      .bookmarklet {
-        display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 999px;
-        background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 460; font-size: 13px; cursor: grab;
-        transition: transform 0.16s var(--ease);
-      }
-      .bookmarklet:active { transform: scale(0.97); cursor: grabbing; }
-      .hint { margin-left: 10px; color: var(--ink-3); font-size: 13px; }
       .code { position: relative; }
       pre {
-        margin: 0; padding: 14px 52px 14px 14px; border-radius: 12px; background: var(--surface-2); overflow-x: auto;
+        margin: 0; padding: 14px 72px 14px 14px; border-radius: 12px; background: var(--surface-2); white-space: pre-wrap; overflow-wrap: anywhere;
         font: 400 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink);
       }
       .copy {
@@ -100,8 +88,7 @@
         box-shadow: 0 0 0 1px var(--line); transition: background-color 0.2s var(--ease);
       }
       .copy:hover { background: var(--surface-2); }
-      .copy:focus-visible, .bookmarklet:focus-visible, .gh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-      .note { margin: 12px 0 0; color: var(--ink-3); font-size: 13px; }
+      .copy:focus-visible, .gh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       table { width: 100%; border-collapse: collapse; }
       td { padding: 10px 0; border-top: 1px solid var(--line); vertical-align: top; }
       td:first-child { width: 132px; white-space: nowrap; padding-right: 16px; }
@@ -121,7 +108,6 @@
         main { padding-top: 40px; }
         h1 { font-size: 32px; }
         td:first-child { width: 96px; }
-        .hint { display: block; margin: 10px 0 0; }
       }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
@@ -154,47 +140,12 @@
       </section>
 
       <section aria-labelledby="install">
-        <h2 id="install">Install it in any project</h2>
-        <p class="sub">Pick one. Each works with any stack that serves a page on localhost.</p>
-
-        <div class="option">
-          <h3>Bookmarklet <span class="tag">Zero install</span></h3>
-          <p>Drag the button to your bookmarks bar. Open any localhost page and click the bookmark.</p>
-          <a class="bookmarklet" id="bookmarklet" href="#">Design toolkit</a><span class="hint">Drag me to the bookmarks bar</span>
+        <h2 id="install">Install</h2>
+        <p class="sub">Paste into your coding agent.</p>
+        <div class="code">
+          <pre><code id="install-prompt"></code></pre>
+          <button class="copy" type="button" data-copy="install-prompt">Copy</button>
         </div>
-
-        <div class="option">
-          <h3>Script tag</h3>
-          <p>Always on while you develop. Add it to your app's HTML, in dev builds only.</p>
-          <div class="code">
-            <pre><code id="snippet-tag"></code></pre>
-            <button class="copy" type="button" data-copy="snippet-tag">Copy</button>
-          </div>
-        </div>
-
-        <div class="option">
-          <h3>Next.js</h3>
-          <p>In <code>app/layout.tsx</code>, inside <code>&lt;body&gt;</code>:</p>
-          <div class="code">
-            <pre><code id="snippet-next"></code></pre>
-            <button class="copy" type="button" data-copy="snippet-next">Copy</button>
-          </div>
-        </div>
-
-        <div class="option">
-          <h3>Vite, Astro, plain HTML</h3>
-          <p>In <code>index.html</code> (or your root layout), dev only:</p>
-          <div class="code">
-            <pre><code id="snippet-vite"></code></pre>
-            <button class="copy" type="button" data-copy="snippet-vite">Copy</button>
-          </div>
-        </div>
-
-        <div class="option">
-          <h3>Self-hosted</h3>
-          <p>Prefer no CDN? Download <a href="toolkit.js" download>toolkit.js</a>, put it in your public folder and point the script tag at <code>/toolkit.js</code>.</p>
-        </div>
-        <p class="note">The CDN serves the latest commit on <code>main</code> and can lag a few hours after an update. Pin a commit (<code>@&lt;sha&gt;</code>) for a fixed version.</p>
       </section>
 
       <section aria-labelledby="tools">
@@ -237,17 +188,9 @@
     <script>
       const CDN = "https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js";
       const snippets = {
-        "snippet-tag": `<script src="${CDN}" async><\/script>`,
-        "snippet-next": `{process.env.NODE_ENV === "development" && (\n  <script src="${CDN}" async />\n)}`,
-        "snippet-vite": `<script>\n  if (["localhost", "127.0.0.1"].includes(location.hostname)) {\n    const s = document.createElement("script");\n    s.src = "${CDN}";\n    document.body.appendChild(s);\n  }\n<\/script>`,
+        "install-prompt": `Add this to my project, in development only: <script src="${CDN}" async><\/script>`,
       };
       for (const [id, text] of Object.entries(snippets)) document.getElementById(id).textContent = text;
-      document.getElementById("bookmarklet").href =
-        `javascript:(()=>{const s=document.createElement('script');s.src='${CDN}';document.body.appendChild(s)})()`;
-      document.getElementById("bookmarklet").addEventListener("click", (e) => {
-        e.preventDefault();
-        e.currentTarget.nextElementSibling.textContent = "Drag it to the bookmarks bar instead of clicking";
-      });
       document.querySelectorAll("[data-copy]").forEach((b) =>
         b.addEventListener("click", async () => {
           try {

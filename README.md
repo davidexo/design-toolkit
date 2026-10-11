@@ -7,33 +7,15 @@ make the same changes in the source.
 One file, [toolkit.js](toolkit.js), no dependencies, no build step. It lives in a shadow root, so it
 never touches your page's styles.
 
-Install page with a drag-to-bookmarks button and a live demo: https://davidexo.github.io/design-toolkit/
+Live demo: https://davidexo.github.io/design-toolkit/
 
 ## Install
 
-Pick one:
+Paste into your coding agent:
 
-- **Bookmarklet (zero install).** Save this as a bookmark, open your localhost page, click it.
-
-  ```
-  javascript:(()=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js';document.body.appendChild(s)})()
-  ```
-
-- **Always on in dev (Next.js App Router).** In `app/layout.tsx`, inside `<body>`:
-
-  ```tsx
-  {process.env.NODE_ENV === "development" && (
-    <script src="https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js" async />
-  )}
-  ```
-
-  Any other stack: the same `<script>` tag, dev builds only.
-
-- **Offline / pinned.** Copy `toolkit.js` into your project's public folder and point the script tag at it.
-
-jsDelivr caches `@main` for up to 12 hours. Pin a commit (`@<sha>`) for a fixed version.
-
-Try it without a project: open [example/index.html](example/index.html) in a browser.
+```
+Add this to my project, in development only: <script src="https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js" async></script>
+```
 
 ## Tools
 
