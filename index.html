@@ -77,18 +77,24 @@
       }
       ol.steps p { margin: 0; color: var(--ink-2); }
       ol.steps strong { color: var(--ink); font-weight: 520; }
-      .code { position: relative; }
-      pre {
-        margin: 0; padding: 14px 72px 14px 14px; border-radius: 12px; background: var(--surface-2); white-space: pre-wrap; overflow-wrap: anywhere;
-        font: 400 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink);
+      .install-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+      .install h2 { font-size: 28px; font-weight: 400; letter-spacing: -0.02em; margin: 0; }
+      .gh-icon { color: var(--ink-3); display: grid; transition: color 0.2s var(--ease); }
+      .gh-icon:hover { color: var(--ink); }
+      .gh-icon svg { width: 22px; height: 22px; }
+      .tabs { display: flex; gap: 24px; margin-bottom: 20px; }
+      .tabs button { all: unset; cursor: pointer; font-size: 17px; color: var(--ink-3); transition: color 0.2s var(--ease); }
+      .tabs button:hover { color: var(--ink-2); }
+      .tabs button[aria-selected="true"] { color: var(--ink); }
+      .tabs button:focus-visible, .block:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+      .block {
+        all: unset; box-sizing: border-box; position: relative; display: block; width: 100%; padding: 18px 20px; border-radius: 16px;
+        background: var(--surface-2); cursor: copy; font: 400 13.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink);
+        white-space: pre-wrap; overflow-wrap: anywhere;
       }
-      .copy {
-        position: absolute; top: 8px; right: 8px; height: 26px; padding: 0 10px; border: 0; border-radius: 999px;
-        background: var(--bg); color: var(--ink); font: 460 12px/1 inherit; font-family: inherit; cursor: pointer;
-        box-shadow: 0 0 0 1px var(--line); transition: background-color 0.2s var(--ease);
-      }
-      .copy:hover { background: var(--surface-2); }
-      .copy:focus-visible, .gh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .block .k { color: #f0718f; }
+      .block .copied { position: absolute; top: 8px; right: 12px; font: 460 11px/1 "Camera Plain", ui-sans-serif, system-ui, sans-serif; color: var(--ink-3); }
+      .gh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       table { width: 100%; border-collapse: collapse; }
       td { padding: 10px 0; border-top: 1px solid var(--line); vertical-align: top; }
       td:first-child { width: 132px; white-space: nowrap; padding-right: 16px; }
@@ -129,6 +135,20 @@
       </p>
       <div class="try">It is running on this page. Press <kbd>T</kbd> <kbd>R</kbd> <kbd>S</kbd> or <kbd>V</kbd> and try the demo below.</div>
 
+      <section aria-labelledby="install" class="install">
+        <div class="install-head">
+          <h2 id="install">Install</h2>
+          <a class="gh-icon" href="https://github.com/davidexo/design-toolkit" aria-label="design-toolkit on GitHub">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+          </a>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Install method">
+          <button role="tab" type="button" data-tab="agent" aria-selected="true">agent</button>
+          <button role="tab" type="button" data-tab="script" aria-selected="false">script</button>
+        </div>
+        <button class="block" type="button" aria-label="Copy install code"><code id="install-code"></code><span class="copied" aria-live="polite"></span></button>
+      </section>
+
       <section aria-labelledby="how">
         <h2 id="how">How it works</h2>
         <p class="sub">Three steps, no build tools, no account.</p>
@@ -137,15 +157,6 @@
           <li><p><strong>Copy prompt.</strong> Press <kbd>⌘</kbd><kbd>↵</kbd>. You get one prompt with every change, where it lives in the DOM and which React component renders it.</p></li>
           <li><p><strong>Paste into your agent.</strong> It finds the source and makes the edit. Your dev server's hot reload shows the result.</p></li>
         </ol>
-      </section>
-
-      <section aria-labelledby="install">
-        <h2 id="install">Install</h2>
-        <p class="sub">Paste into your coding agent.</p>
-        <div class="code">
-          <pre><code id="install-prompt"></code></pre>
-          <button class="copy" type="button" data-copy="install-prompt">Copy</button>
-        </div>
       </section>
 
       <section aria-labelledby="tools">
@@ -187,21 +198,32 @@
 
     <script>
       const CDN = "https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js";
-      const snippets = {
-        "install-prompt": `Add this to my project, in development only: <script src="${CDN}" async><\/script>`,
+      const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const tag = `<script src="${CDN}" async><\/script>`;
+      const installs = {
+        agent: { text: `Add this to my project, in development only: ${tag}`, html: `<span class="k">Add this to my project, in development only:</span> ${esc(tag)}` },
+        script: { text: tag, html: `<span class="k">&lt;script</span> src="${CDN}" async<span class="k">&gt;&lt;/script&gt;</span>` },
       };
-      for (const [id, text] of Object.entries(snippets)) document.getElementById(id).textContent = text;
-      document.querySelectorAll("[data-copy]").forEach((b) =>
-        b.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(snippets[b.dataset.copy]);
-            b.textContent = "Copied";
-          } catch {
-            b.textContent = "Select and copy";
-          }
-          setTimeout(() => (b.textContent = "Copy"), 1600);
-        }),
-      );
+      const code = document.getElementById("install-code");
+      const copied = document.querySelector(".block .copied");
+      let current = "agent";
+      const show = (name) => {
+        current = name;
+        code.innerHTML = installs[name].html;
+        copied.textContent = "";
+        document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+      };
+      document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+      document.querySelector(".block").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(installs[current].text);
+          copied.textContent = "Copied";
+        } catch {
+          copied.textContent = "Select and copy";
+        }
+        setTimeout(() => (copied.textContent = ""), 1600);
+      });
+      show("agent");
     </script>
     <script src="toolkit.js" async></script>
   </body>
