@@ -101,6 +101,7 @@
       .bar {
         position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2147483647;
         display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px;
+        max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none;
         background: #141414; color: rgba(255,255,255,.9); box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.24);
       }
       button {
