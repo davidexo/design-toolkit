@@ -99,61 +99,90 @@
         font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased; user-select: none;
       }
-      /* Toolbar, modelled on Figma's: a dark slab of icon tools, blue when active, chevrons for options. */
+      /* Toolbar: PERMANENT ui's canvas-toolbar (bencho's bar family). 38px slots, 6px hug, 2px gap, a frosted
+         pane, dimmed tools with a thumb that springs in under the chosen one, corner wedges for options.
+         The pane is a little more opaque than the original because it floats over any page. */
+      .bar, .menu {
+        --ink-rgb: 255, 255, 255; --elev-rgb: 38, 38, 38; --shadow-rgb: 0, 0, 0; --rule: rgba(255, 255, 255, .1); --pick: #4c9df5;
+        --slot: 38px; --pad: 6px; --gap: 2px; --r: 14px; --tool-r: 10px;
+        font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
+        -webkit-font-smoothing: antialiased; user-select: none; color: #fff;
+        border-radius: var(--r); background: rgba(var(--elev-rgb), .8);
+        -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%); isolation: isolate;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px var(--rule), 0 10px 40px rgba(var(--shadow-rgb), .25);
+      }
       .bar {
         position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2147483647;
-        display: flex; align-items: center; gap: 2px; padding: 6px; border-radius: 14px;
+        display: flex; align-items: center; gap: var(--gap); padding: var(--pad);
         max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none;
-        background: #2c2c2c; color: rgba(255,255,255,.9);
-        font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
-        -webkit-font-smoothing: antialiased; user-select: none;
-        box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 1px 3px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
       }
-      .bar button, .menu button {
-        all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: none;
-        cursor: pointer; white-space: nowrap; color: rgba(255,255,255,.9);
-        transition: background-color .15s cubic-bezier(.23,1,.32,1), color .15s cubic-bezier(.23,1,.32,1);
+      .bar button, .menu button { all: unset; box-sizing: border-box; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+      .bar button:focus-visible, .menu button:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
+      .bar .tool {
+        position: relative; display: grid; place-items: center; flex: none; width: var(--slot); height: var(--slot);
+        border-radius: var(--tool-r); color: #fff; opacity: .45; transition: opacity .2s, background-color .2s;
       }
-      .bar button { height: 40px; border-radius: 8px; }
-      .bar button:hover { background: rgba(255,255,255,.08); }
-      .bar button:focus-visible, .menu button:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 1px; }
-      .bar .tool { width: 40px; }
-      .bar .tool svg { width: 22px; height: 22px; }
-      .bar .tool[aria-pressed="true"] { background: ${BLUE}; color: #fff; }
-      .bar .chev { width: 18px; margin-left: -1px; color: rgba(255,255,255,.55); }
-      .bar .chev svg { width: 12px; height: 12px; }
-      .bar .chev[aria-expanded="true"] { background: rgba(255,255,255,.08); color: #fff; }
-      .bar .copy { height: 32px; margin-left: 2px; padding: 0 10px; gap: 8px; border-radius: 8px; background: ${BLUE}; color: #fff; font-weight: 520; }
-      .bar .copy:hover { background: #2b9bff; }
-      .bar .copy[aria-disabled="true"] { background: rgba(255,255,255,.08); color: rgba(255,255,255,.4); cursor: default; }
-      .bar .badge {
-        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: rgba(255,255,255,.25);
+      .bar .tool:hover { opacity: .8; background: rgba(var(--ink-rgb), .05); }
+      /* the thumb grows in under the chosen tool */
+      .bar .tool::before {
+        content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit; background: rgba(var(--ink-rgb), .1);
+        opacity: 0; scale: .72; pointer-events: none; transition: opacity .14s, scale .3s cubic-bezier(.3, 1.42, .4, 1);
+      }
+      .bar .tool > svg { position: relative; z-index: 1; width: 17px; height: 17px; transition: scale .3s cubic-bezier(.3, 1.42, .4, 1); }
+      .bar .tool[aria-pressed="true"] { opacity: 1; }
+      .bar .tool[aria-pressed="true"]::before { opacity: 1; scale: 1; }
+      .bar .tool[aria-pressed="true"] > svg { scale: 1.05; }
+      .bar .tool:active > svg { scale: .92; transition-duration: 90ms; }
+      .slot { position: relative; display: inline-flex; flex: none; }
+      /* a corner wedge, the universal "there is more here" */
+      .bar .notch { position: absolute; right: 3px; bottom: 3px; width: 9px; height: 9px; z-index: 2; }
+      .bar .notch::after {
+        content: ""; position: absolute; right: 0; bottom: 0; border-left: 5px solid transparent; border-bottom: 5px solid #fff;
+        opacity: .4; transition: opacity .16s;
+      }
+      .bar .notch:hover::after, .bar .notch[aria-expanded="true"]::after { opacity: .9; }
+      .split { width: 1px; height: 20px; margin: 0 5px; flex: none; background: rgba(var(--ink-rgb), .12); }
+      .bar .copy {
+        position: relative; display: inline-flex; align-items: center; gap: 8px; flex: none; height: var(--slot); padding: 0 16px 0 12px;
+        border-radius: var(--tool-r); background: #fff; color: #141414; font-weight: 520; transition: opacity .2s, background-color .2s;
+      }
+      .bar .copy:hover { background: rgba(255, 255, 255, .88); }
+      .bar .copy:active { scale: .97; }
+      .bar .copy[aria-disabled="true"] { background: rgba(var(--ink-rgb), .08); color: rgba(255, 255, 255, .4); cursor: default; }
+      .bar .copy .notch::after { border-bottom-color: currentColor; }
+      .badge {
+        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: rgba(20, 20, 20, .12);
         display: inline-grid; place-items: center; font-size: 11px; font-variant-numeric: tabular-nums;
       }
-      .bar .sep { width: 1px; height: 24px; margin: 0 6px; background: rgba(255,255,255,.1); flex: none; }
+      .badge[hidden] { display: none; }
       svg { flex: none; }
-      kbd { font: inherit; color: rgba(255,255,255,.5); }
+      kbd { font: inherit; color: rgba(255, 255, 255, .5); }
 
-      .menu, .tip, .toast {
-        position: fixed; z-index: 2147483647; display: none; color: rgba(255,255,255,.9); background: #1e1e1e;
-        font: 460 13px/1.2 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
-        -webkit-font-smoothing: antialiased; user-select: none;
-        box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.4);
+      /* Options rise out of the bar like the shape flyout. */
+      .menu { position: fixed; z-index: 2147483647; display: none; min-width: 236px; padding: var(--pad); animation: rise .3s cubic-bezier(.22, 1.14, .36, 1) both; }
+      @keyframes rise {
+        0% { opacity: 0; transform: translateY(9px) scale(.965); }
+        55% { opacity: 1; }
+        to { opacity: 1; transform: none; }
       }
-      .menu { min-width: 236px; padding: 6px; border-radius: 12px; }
-      .menu .mh { padding: 6px 8px 6px; font-size: 11px; color: rgba(255,255,255,.45); }
-      .menu .mi { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; align-items: center; justify-content: stretch; width: 100%; padding: 7px 8px; border-radius: 6px; }
-      .menu .mi:hover { background: ${BLUE}; color: #fff; }
+      .menu .mh { padding: 6px 8px; font-size: 11px; color: rgba(255, 255, 255, .45); }
+      .menu .mi { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; align-items: center; width: 100%; padding: 8px; border-radius: var(--tool-r); transition: background-color .15s; }
+      .menu .mi:hover { background: rgba(var(--ink-rgb), .07); }
       .menu .mi svg { width: 14px; height: 14px; visibility: hidden; }
       .menu .mi[aria-checked="true"] svg { visibility: visible; }
-      .menu .mi small { grid-column: 2; margin-top: 3px; font-size: 11px; color: rgba(255,255,255,.5); white-space: normal; }
-      .menu .mi:hover small { color: rgba(255,255,255,.8); }
+      .menu .mi small { grid-column: 2; margin-top: 3px; font-size: 11px; color: rgba(255, 255, 255, .5); white-space: normal; line-height: 1.3; }
       .menu .mi[aria-disabled="true"] { opacity: .4; pointer-events: none; }
-      .menu hr { border: 0; height: 1px; margin: 6px 0; background: rgba(255,255,255,.08); }
-      .tip { padding: 6px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; pointer-events: none; }
+      .menu hr { border: 0; height: 1px; margin: 6px 4px; background: rgba(var(--ink-rgb), .1); }
+      .tip, .toast {
+        position: fixed; z-index: 2147483647; display: none; color: #fff; background: rgba(30, 30, 30, .92);
+        font: 460 12px/1.2 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 10px 30px rgba(0, 0, 0, .3); pointer-events: none;
+      }
+      .tip { padding: 6px 8px; border-radius: 8px; white-space: nowrap; }
       .tip kbd { margin-left: 10px; }
-      .toast { left: 50%; transform: translateX(-50%); padding: 8px 12px; border-radius: 8px; max-width: calc(100vw - 32px); text-align: center; pointer-events: none; }
+      .toast { left: 50%; transform: translateX(-50%); padding: 8px 12px; border-radius: 10px; font-size: 13px; max-width: calc(100vw - 32px); text-align: center; }
       .toast.err { color: #ff8a8a; }
+      @media (prefers-reduced-motion: reduce) { .menu { animation-duration: 1ms; } .bar .tool, .bar .tool::before, .bar .tool > svg, .bar .notch::after { transition-duration: 1ms; } }
 
       .box { position: fixed; z-index: 2147483645; pointer-events: none; display: none; }
       .box.hover { box-shadow: 0 0 0 1px ${BLUE}; }
@@ -203,9 +232,11 @@
       .insert { position: fixed; z-index: 2147483646; display: none; pointer-events: none; border-radius: 2px; background: ${BLUE}; box-shadow: 0 0 0 1px rgba(255,255,255,.6); }
 
       .panel {
-        position: fixed; top: 16px; right: 16px; z-index: 2147483647; width: 232px; display: none; padding: 4px 0 8px;
-        border-radius: 16px; background: #141414; color: rgba(255,255,255,.9);
-        box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.24);
+        /* Sits on top of the toolbar, in the same frosted pane, so tools and values read as one unit. */
+        position: fixed; z-index: 2147483647; width: 260px; display: none; padding: 4px 0 8px;
+        border-radius: 14px; background: rgba(38, 38, 38, .8); color: rgba(255,255,255,.9);
+        -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 1px rgba(255,255,255,.1), 0 10px 40px rgba(0,0,0,.25);
         font: 460 12px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased; user-select: none;
       }
@@ -299,39 +330,52 @@
   const spaceLayer = root.querySelector(".space");
   const panel = root.querySelector(".panel");
 
-  const stroke = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const glyph = (d) => `<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="${d}"/></svg>`;
   const ICON = {
-    type: stroke('<path d="M6 5.5h12M12 5.5v13M9.5 18.5h5"/>'),
-    radius: stroke('<path d="M5.5 18.5v-7a6 6 0 0 1 6-6h7"/>'),
-    spacing: stroke('<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1" stroke-dasharray="2 2"/>'),
-    move: stroke('<path d="M6 4.5 18.5 10l-5.6 1.9-1.9 5.6Z"/>'),
-    chev: stroke('<path d="m7 10 5 5 5-5"/>'),
-    check: stroke('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
+    /* move and text are the canvas-toolbar's own glyphs; radius and spacing are drawn to match */
+    move: glyph("M4.2 3.2a1.4 1.4 0 0 1 1.5-.3l15.2 6.2a1.4 1.4 0 0 1-.2 2.6l-6 1.6a1.6 1.6 0 0 0-1.2 1.1l-1.6 6a1.4 1.4 0 0 1-2.6.2L3.1 5.4a1.4 1.4 0 0 1 .3-1.5z"),
+    type: glyph("M5 3.5h14A2.5 2.5 0 0 1 21.5 6v1.5a1.5 1.5 0 1 1-3 0v-1h-5v12h1.3a1.5 1.5 0 1 1 0 3H9.2a1.5 1.5 0 1 1 0-3h1.3v-12h-5v1a1.5 1.5 0 1 1-3 0V6A2.5 2.5 0 0 1 5 3.5"),
+    radius: glyph("M4 21a1.5 1.5 0 0 1-1.5-1.5V12A9.5 9.5 0 0 1 12 2.5h7.5a1.5 1.5 0 0 1 0 3H12A6.5 6.5 0 0 0 5.5 12v7.5A1.5 1.5 0 0 1 4 21"),
+    spacing: glyph("M6 2.5h12A3.5 3.5 0 0 1 21.5 6v12a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 18V6A3.5 3.5 0 0 1 6 2.5m0 3a.5.5 0 0 0-.5.5v12c0 .28.22.5.5.5h12a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5zm3.5 4h5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-4c0-.28.22-.5.5-.5"),
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   };
+
 
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
   const MOD = isMac ? "⌘" : "Ctrl";
+  /* Move first, like the canvas-toolbar; its slot carries the corner wedge for move options. */
   const TOOLS = [
+    ["move", "Move", "V"],
     ["text", "Text", "T"],
     ["radius", "Radius", "R"],
     ["spacing", "Spacing", "S"],
-    ["move", "Move", "V"],
   ];
   let menuOpen = null; // null | "move" | "copy"
 
+  const toolButton = (id, label, key) =>
+    `<button class="tool" data-tool="${id}" aria-pressed="false" aria-label="${label}" aria-keyshortcuts="${key}" data-tip="${label}" data-key="${key}">${ICON[id === "text" ? "type" : id]}</button>`;
+  bar.innerHTML =
+    TOOLS.map(([id, label, key]) =>
+      id === "move"
+        ? `<span class="slot">${toolButton(id, label, key)}<button class="notch" data-menu="move" aria-haspopup="menu" aria-expanded="false" aria-label="Move options" data-tip="Move options"></button></span>`
+        : toolButton(id, label, key),
+    ).join("") +
+    `<span class="split"></span>
+    <span class="slot"><button class="copy" aria-disabled="true"><span class="copy-label">Copy prompt</span><span class="badge" hidden></span></button><button class="notch" data-menu="copy" aria-haspopup="menu" aria-expanded="false" aria-label="Prompt options" data-tip="Prompt options"></button></span>`;
+  const copyButton = bar.querySelector(".copy");
+  const badge = bar.querySelector(".badge");
+
   function render() {
     const n = count();
-    let html = "";
-    for (const [id, label, key] of TOOLS) {
-      html += `<button class="tool" data-tool="${id}" aria-pressed="${tool === id}" aria-label="${label}" aria-keyshortcuts="${key}" data-tip="${label}" data-key="${key}">${ICON[id === "text" ? "type" : id]}</button>`;
-      if (id === "move") html += `<button class="chev" data-menu="move" aria-haspopup="menu" aria-expanded="${menuOpen === "move"}" aria-label="Move options" data-tip="Move options">${ICON.chev}</button>`;
-    }
-    html += `<span class="sep"></span>
-      <button class="copy" aria-disabled="${n === 0}" data-tip="${n ? "Copy prompt" : "Make an edit first"}" data-key="${n ? `${MOD}↵` : ""}">Copy prompt${n ? `<span class="badge">${n}</span>` : ""}</button>
-      <button class="chev" data-menu="copy" aria-haspopup="menu" aria-expanded="${menuOpen === "copy"}" aria-label="Prompt options" data-tip="Prompt options">${ICON.chev}</button>`;
-    bar.innerHTML = html;
+    bar.querySelectorAll(".tool").forEach((b) => b.setAttribute("aria-pressed", String(tool === b.dataset.tool)));
+    bar.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", String(menuOpen === b.dataset.menu)));
+    copyButton.setAttribute("aria-disabled", String(n === 0));
+    copyButton.dataset.tip = n ? "Copy prompt" : "Make an edit first";
+    copyButton.dataset.key = n ? `${MOD}↵` : "";
+    badge.hidden = !n;
+    badge.textContent = n;
 
     /* Status floats above the toolbar instead of pushing the tools around. */
     const show = status === "done" || status === "error";
@@ -344,7 +388,7 @@
     renderMenu();
   }
 
-  /* Option menus, opened from the chevrons like Figma's tool menus. */
+  /* Option menus, opened from the corner wedges. */
   function renderMenu() {
     if (!menuOpen) return (menu.style.display = "none");
     const item = (attrs, checked, label, hint, disabled = false) =>
@@ -362,11 +406,17 @@
         <hr />
         ${item('role="menuitem" data-set="revert"', false, `Revert all edits${n ? ` (${n})` : ""}`, "", n === 0)}`;
     }
+    if (menu.style.display !== "block") {
+      menu.style.animation = "none";
+      void menu.offsetWidth; // restart the rise each time it opens
+      menu.style.animation = "";
+    }
     menu.style.display = "block";
-    const anchor = bar.querySelector(`[data-menu="${menuOpen}"]`).getBoundingClientRect();
+    const slot = bar.querySelector(`[data-menu="${menuOpen}"]`).parentElement.getBoundingClientRect();
     const b = bar.getBoundingClientRect();
     const w = menu.offsetWidth;
-    Object.assign(menu.style, { left: `${Math.max(8, Math.min(anchor.right - w, innerWidth - w - 8))}px`, bottom: `${innerHeight - b.top + 8}px` });
+    const left = slot.left + slot.width / 2 - w / 2;
+    Object.assign(menu.style, { left: `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`, bottom: `${innerHeight - b.top + 8}px` });
   }
 
   const setMenu = (name) => {
@@ -1502,7 +1552,17 @@
       lastPanelFor = null;
       return;
     }
+    if (menuOpen) {
+      panel.style.display = "none"; // an open option menu takes the space above the bar
+      return;
+    }
     panel.style.display = "block";
+    const b = bar.getBoundingClientRect();
+    const w = panel.offsetWidth;
+    Object.assign(panel.style, {
+      left: `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`,
+      bottom: `${innerHeight - b.top + 8}px`,
+    });
     if (lastPanelFor !== selected) {
       lastPanelFor = selected;
       const d = describe(selected);
