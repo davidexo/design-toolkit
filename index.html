@@ -93,6 +93,9 @@
         white-space: pre-wrap; overflow-wrap: anywhere;
       }
       .block .k { color: #f0718f; }
+      .use { margin-top: 20px; }
+      .use[hidden] { display: none; }
+      .use-label { margin: 0 0 10px; color: var(--ink-2); }
       .block .copied { position: absolute; top: 8px; right: 12px; font: 460 11px/1 "Camera Plain", ui-sans-serif, system-ui, sans-serif; color: var(--ink-3); }
       .gh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       table { width: 100%; border-collapse: collapse; }
@@ -143,10 +146,19 @@
           </a>
         </div>
         <div class="tabs" role="tablist" aria-label="Install method">
-          <button role="tab" type="button" data-tab="agent" aria-selected="true">agent</button>
-          <button role="tab" type="button" data-tab="script" aria-selected="false">script</button>
+          <button role="tab" type="button" data-tab="npm" aria-selected="true">npm</button>
+          <button role="tab" type="button" data-tab="agent" aria-selected="false">agent</button>
+          <button role="tab" type="button" data-tab="pnpm" aria-selected="false">pnpm</button>
+          <button role="tab" type="button" data-tab="yarn" aria-selected="false">yarn</button>
+          <button role="tab" type="button" data-tab="bun" aria-selected="false">bun</button>
         </div>
-        <button class="block" type="button" aria-label="Copy install code"><code id="install-code"></code><span class="copied" aria-live="polite"></span></button>
+        <button class="block" type="button" aria-label="Copy install command"><code id="install-code"></code><span class="copied" aria-live="polite"></span></button>
+        <div class="use" id="use">
+          <p class="use-label">Then render it once, in your root layout:</p>
+          <button class="block" type="button" aria-label="Copy usage code" data-use><code><span class="k">import</span> { DesignToolkit } <span class="k">from</span> "design-toolkit/react";
+
+&lt;<span class="k">DesignToolkit</span> /&gt;</code><span class="copied" aria-live="polite"></span></button>
+        </div>
       </section>
 
       <section aria-labelledby="how">
@@ -197,33 +209,40 @@
     </main>
 
     <script>
-      const CDN = "https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js";
       const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-      const tag = `<script src="${CDN}" async><\/script>`;
+      const pm = (cmd) => ({ text: `${cmd} design-toolkit`, html: `<span class="k">${cmd}</span> design-toolkit` });
+      const agent = `Install the design-toolkit package and render <DesignToolkit /> from "design-toolkit/react" once in my root layout. If this is not a React app, import "design-toolkit" in development only instead.`;
       const installs = {
-        agent: { text: `Add this to my project, in development only: ${tag}`, html: `<span class="k">Add this to my project, in development only:</span> ${esc(tag)}` },
-        script: { text: tag, html: `<span class="k">&lt;script</span> src="${CDN}" async<span class="k">&gt;&lt;/script&gt;</span>` },
+        npm: pm("npm install"),
+        agent: { text: agent, html: esc(agent) },
+        pnpm: pm("pnpm add"),
+        yarn: pm("yarn add"),
+        bun: pm("bun add"),
       };
+      const USE = `import { DesignToolkit } from "design-toolkit/react";\n\n<DesignToolkit />`;
       const code = document.getElementById("install-code");
-      const copied = document.querySelector(".block .copied");
-      let current = "agent";
+      const use = document.getElementById("use");
+      let current = "npm";
       const show = (name) => {
         current = name;
         code.innerHTML = installs[name].html;
-        copied.textContent = "";
+        use.hidden = name === "agent";
         document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
       };
       document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
-      document.querySelector(".block").addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(installs[current].text);
-          copied.textContent = "Copied";
-        } catch {
-          copied.textContent = "Select and copy";
-        }
-        setTimeout(() => (copied.textContent = ""), 1600);
-      });
-      show("agent");
+      document.querySelectorAll(".block").forEach((block) =>
+        block.addEventListener("click", async () => {
+          const note = block.querySelector(".copied");
+          try {
+            await navigator.clipboard.writeText(block.hasAttribute("data-use") ? USE : installs[current].text);
+            note.textContent = "Copied";
+          } catch {
+            note.textContent = "Select and copy";
+          }
+          setTimeout(() => (note.textContent = ""), 1600);
+        }),
+      );
+      show("npm");
     </script>
     <script src="toolkit.js" async></script>
   </body>

@@ -14,7 +14,8 @@
    Plain JS, no dependencies, UI lives in a shadow root so it never fights the page. */
 
 (() => {
-  if (window.__permanentToolkit) return;
+  /* Server rendering imports this too (Next.js, Remix): only run in a browser, and only once. */
+  if (typeof window === "undefined" || window.__permanentToolkit) return;
   window.__permanentToolkit = true;
 
   const GRID = 2;

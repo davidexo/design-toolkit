@@ -11,11 +11,21 @@ Live demo: https://davidexo.github.io/design-toolkit/
 
 ## Install
 
-Paste into your coding agent:
+```bash
+npm install design-toolkit
+```
 
+Then render it once, in your root layout (it only runs in development):
+
+```tsx
+import { DesignToolkit } from "design-toolkit/react";
+
+<DesignToolkit />
 ```
-Add this to my project, in development only: <script src="https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js" async></script>
-```
+
+Not using React? `import "design-toolkit"` in development only. Or skip the install and add
+`<script src="https://cdn.jsdelivr.net/gh/davidexo/design-toolkit@main/toolkit.js" async></script>`
+to your dev page.
 
 ## Tools
 
