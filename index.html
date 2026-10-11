@@ -56,6 +56,16 @@
       .gh svg { width: 14px; height: 14px; }
       h1 { margin: 0 0 16px; font-size: 40px; font-weight: 400; line-height: 1; letter-spacing: -0.035em; text-wrap: balance; }
       .lede { margin: 0; color: var(--ink-2); font-size: 17px; max-width: 34em; text-wrap: pretty; }
+      .setup-row { margin-top: 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .setup {
+        all: unset; box-sizing: border-box; display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 12px;
+        background: var(--ink); color: var(--bg); font-weight: 520; font-size: 14px; cursor: pointer;
+        transition: opacity .2s var(--ease), transform .16s var(--ease);
+      }
+      .setup:hover { opacity: .88; }
+      .setup:active { transform: scale(.97); }
+      .setup:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+      .setup-hint { color: var(--ink-3); font-size: 13px; max-width: 30em; }
       .try {
         margin-top: 24px; display: inline-block; padding: 8px 12px; border-radius: 12px; line-height: 1.9;
         background: var(--surface); color: var(--ink-2); font-size: 13px;
@@ -136,6 +146,10 @@
         A tiny toolbar for your localhost. Edit text, corner radius, spacing and layout right where you see them,
         then copy one prompt that tells Claude Code (or any coding agent) to make the same changes in your source.
       </p>
+      <div class="setup-row">
+        <button class="setup" type="button" data-copy-setup>Copy setup prompt</button>
+        <span class="setup-hint">Paste it into Claude Code, Cursor or any coding agent. It installs and wires it up for you.</span>
+      </div>
       <div class="try">It is running on this page. Press <kbd>T</kbd> <kbd>R</kbd> <kbd>S</kbd> or <kbd>V</kbd> and try the demo below.</div>
 
       <section aria-labelledby="install" class="install">
@@ -146,8 +160,8 @@
           </a>
         </div>
         <div class="tabs" role="tablist" aria-label="Install method">
-          <button role="tab" type="button" data-tab="npm" aria-selected="true">npm</button>
-          <button role="tab" type="button" data-tab="agent" aria-selected="false">agent</button>
+          <button role="tab" type="button" data-tab="agent" aria-selected="true">agent</button>
+          <button role="tab" type="button" data-tab="npm" aria-selected="false">npm</button>
           <button role="tab" type="button" data-tab="pnpm" aria-selected="false">pnpm</button>
           <button role="tab" type="button" data-tab="yarn" aria-selected="false">yarn</button>
           <button role="tab" type="button" data-tab="bun" aria-selected="false">bun</button>
@@ -211,7 +225,10 @@
     <script>
       const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
       const pm = (cmd) => ({ text: `${cmd} design-toolkit`, html: `<span class="k">${cmd}</span> design-toolkit` });
-      const agent = `Install the design-toolkit package and render <DesignToolkit /> from "design-toolkit/react" once in my root layout. If this is not a React app, import "design-toolkit" in development only instead.`;
+      const agent = `Set up design-toolkit (https://www.npmjs.com/package/design-toolkit) in this project:
+1. Install it with the package manager this project already uses (check the lockfile).
+2. In a React app (Next.js, Vite, Remix...), render <DesignToolkit /> from "design-toolkit/react" once in the root layout. Otherwise, import "design-toolkit" in development only.
+3. Change nothing else. Then start or reload the dev server and confirm the toolbar shows at the bottom of the page.`;
       const installs = {
         npm: pm("npm install"),
         agent: { text: agent, html: esc(agent) },
@@ -222,7 +239,7 @@
       const USE = `import { DesignToolkit } from "design-toolkit/react";\n\n<DesignToolkit />`;
       const code = document.getElementById("install-code");
       const use = document.getElementById("use");
-      let current = "npm";
+      let current = "agent";
       const show = (name) => {
         current = name;
         code.innerHTML = installs[name].html;
@@ -242,7 +259,17 @@
           setTimeout(() => (note.textContent = ""), 1600);
         }),
       );
-      show("npm");
+      show("agent");
+      const setup = document.querySelector("[data-copy-setup]");
+      setup.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(agent);
+          setup.textContent = "Copied, paste it into your agent";
+        } catch {
+          setup.textContent = "Copy failed, use the agent tab below";
+        }
+        setTimeout(() => (setup.textContent = "Copy setup prompt"), 2200);
+      });
     </script>
     <script src="toolkit.js" async></script>
   </body>

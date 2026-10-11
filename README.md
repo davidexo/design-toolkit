@@ -11,6 +11,17 @@ Live demo: https://davidexo.github.io/design-toolkit/
 
 ## Install
 
+Easiest: paste this into your coding agent and let it set things up.
+
+```
+Set up design-toolkit (https://www.npmjs.com/package/design-toolkit) in this project:
+1. Install it with the package manager this project already uses (check the lockfile).
+2. In a React app (Next.js, Vite, Remix...), render <DesignToolkit /> from "design-toolkit/react" once in the root layout. Otherwise, import "design-toolkit" in development only.
+3. Change nothing else. Then start or reload the dev server and confirm the toolbar shows at the bottom of the page.
+```
+
+By hand:
+
 ```bash
 npm install design-toolkit
 ```
