@@ -34,7 +34,7 @@ to your dev page.
 | `T` | **Text**: click any copy and type, `↵` or `Esc` to leave the field |
 | `R` | **Radius**: click any box, drag the corner handle, `↑` `↓` to step, `↵` or click the value to type |
 | `S` | **Spacing**: click any element, drag its padding (green), margin (orange) or gap (purple) bands, click a number to type |
-| `V` | **Move**: drag an element into any container (flow), or anywhere with the **Absolute** switch on; arrows reorder (flow) or nudge (absolute) |
+| `V` | **Move**: drag an element into any container (flow), or anywhere with **Absolute** picked from its chevron menu; arrows reorder (flow) or nudge (absolute) |
 
 Everything snaps to a 2px grid, typed values included (13 becomes 14).
 
@@ -53,7 +53,7 @@ Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner 
 Type a value, step with `↑` `↓`, `Tab` between fields, or drag a field's label to scrub, like Figma's
 design sidebar.
 
-**Tokens switch.** On (default): Claude maps values to your existing design tokens, rounding to the
+**Use design tokens** (in the Copy prompt chevron menu). On (default): Claude maps values to your existing design tokens, rounding to the
 nearest one. Off: exact values, even if no token exists yet. Remembered per browser.
 
 **Move.** Flow is the default: drag an element and a blue line shows the slot it will take in the

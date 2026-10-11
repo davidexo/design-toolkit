@@ -95,41 +95,65 @@
     <style>
       :host { all: initial; }
       * { box-sizing: border-box; }
-      .bar, .tag, .lb {
+      .tag, .lb {
         font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased; user-select: none;
       }
+      /* Toolbar, modelled on Figma's: a dark slab of icon tools, blue when active, chevrons for options. */
       .bar {
         position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2147483647;
-        display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px;
+        display: flex; align-items: center; gap: 2px; padding: 6px; border-radius: 14px;
         max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none;
-        background: #141414; color: rgba(255,255,255,.9); box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.24);
+        background: #2c2c2c; color: rgba(255,255,255,.9);
+        font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
+        -webkit-font-smoothing: antialiased; user-select: none;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 1px 3px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
       }
-      button {
-        all: unset; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px;
-        color: rgba(255,255,255,.8); cursor: pointer; white-space: nowrap;
-        transition: background-color .2s cubic-bezier(.23,1,.32,1), color .2s cubic-bezier(.23,1,.32,1), transform .16s cubic-bezier(.23,1,.32,1);
+      .bar button, .menu button {
+        all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: none;
+        cursor: pointer; white-space: nowrap; color: rgba(255,255,255,.9);
+        transition: background-color .15s cubic-bezier(.23,1,.32,1), color .15s cubic-bezier(.23,1,.32,1);
       }
-      button:hover { background: rgba(255,255,255,.05); color: rgba(255,255,255,.9); }
-      button:active { transform: scale(.97); }
-      button:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 1px; }
-      button[aria-pressed="true"] { background: rgba(255,255,255,.1); color: #fff; }
-      button.icon { width: 32px; padding: 0; justify-content: center; }
-      button.toggle { gap: 8px; padding: 0 10px; color: rgba(255,255,255,.5); }
-      .switch { position: relative; width: 20px; height: 12px; border-radius: 999px; background: rgba(255,255,255,.2); transition: background-color .2s cubic-bezier(.23,1,.32,1); }
-      .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: #fff; transition: transform .2s cubic-bezier(.23,1,.32,1); }
-      button.toggle[aria-pressed="true"] { background: none; color: rgba(255,255,255,.8); }
-      button.toggle[aria-pressed="true"] .switch { background: ${BLUE}; }
-      button.toggle[aria-pressed="true"] .switch::after { transform: translateX(8px); }
-      button.copy { background: #fff; color: #141414; padding: 0 8px 0 12px; }
-      button.copy:hover { background: rgba(255,255,255,.9); color: #141414; }
-      svg { width: 16px; height: 16px; flex: none; }
-      kbd { font: inherit; font-size: 11px; padding: 3px 5px; border-radius: 5px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); }
-      .copy kbd { background: rgba(0,0,0,.08); color: rgba(20,20,20,.5); }
-      .sep { width: 1px; height: 16px; margin: 0 4px; background: rgba(255,255,255,.1); }
-      .note { padding: 0 10px 0 6px; color: rgba(255,255,255,.5); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .note.err { color: #ff6b6b; }
-      .count { font-variant-numeric: tabular-nums; }
+      .bar button { height: 40px; border-radius: 8px; }
+      .bar button:hover { background: rgba(255,255,255,.08); }
+      .bar button:focus-visible, .menu button:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 1px; }
+      .bar .tool { width: 40px; }
+      .bar .tool svg { width: 22px; height: 22px; }
+      .bar .tool[aria-pressed="true"] { background: ${BLUE}; color: #fff; }
+      .bar .chev { width: 18px; margin-left: -1px; color: rgba(255,255,255,.55); }
+      .bar .chev svg { width: 12px; height: 12px; }
+      .bar .chev[aria-expanded="true"] { background: rgba(255,255,255,.08); color: #fff; }
+      .bar .copy { height: 32px; margin-left: 2px; padding: 0 10px; gap: 8px; border-radius: 8px; background: ${BLUE}; color: #fff; font-weight: 520; }
+      .bar .copy:hover { background: #2b9bff; }
+      .bar .copy[aria-disabled="true"] { background: rgba(255,255,255,.08); color: rgba(255,255,255,.4); cursor: default; }
+      .bar .badge {
+        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: rgba(255,255,255,.25);
+        display: inline-grid; place-items: center; font-size: 11px; font-variant-numeric: tabular-nums;
+      }
+      .bar .sep { width: 1px; height: 24px; margin: 0 6px; background: rgba(255,255,255,.1); flex: none; }
+      svg { flex: none; }
+      kbd { font: inherit; color: rgba(255,255,255,.5); }
+
+      .menu, .tip, .toast {
+        position: fixed; z-index: 2147483647; display: none; color: rgba(255,255,255,.9); background: #1e1e1e;
+        font: 460 13px/1.2 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
+        -webkit-font-smoothing: antialiased; user-select: none;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.4);
+      }
+      .menu { min-width: 236px; padding: 6px; border-radius: 12px; }
+      .menu .mh { padding: 6px 8px 6px; font-size: 11px; color: rgba(255,255,255,.45); }
+      .menu .mi { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; align-items: center; justify-content: stretch; width: 100%; padding: 7px 8px; border-radius: 6px; }
+      .menu .mi:hover { background: ${BLUE}; color: #fff; }
+      .menu .mi svg { width: 14px; height: 14px; visibility: hidden; }
+      .menu .mi[aria-checked="true"] svg { visibility: visible; }
+      .menu .mi small { grid-column: 2; margin-top: 3px; font-size: 11px; color: rgba(255,255,255,.5); white-space: normal; }
+      .menu .mi:hover small { color: rgba(255,255,255,.8); }
+      .menu .mi[aria-disabled="true"] { opacity: .4; pointer-events: none; }
+      .menu hr { border: 0; height: 1px; margin: 6px 0; background: rgba(255,255,255,.08); }
+      .tip { padding: 6px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; pointer-events: none; }
+      .tip kbd { margin-left: 10px; }
+      .toast { left: 50%; transform: translateX(-50%); padding: 8px 12px; border-radius: 8px; max-width: calc(100vw - 32px); text-align: center; pointer-events: none; }
+      .toast.err { color: #ff8a8a; }
 
       .box { position: fixed; z-index: 2147483645; pointer-events: none; display: none; }
       .box.hover { box-shadow: 0 0 0 1px ${BLUE}; }
@@ -256,9 +280,15 @@
         </div>
       </section>
     </aside>
-    <div class="bar" role="toolbar" aria-label="PERMANENT toolkit"></div>
+    <div class="bar" role="toolbar" aria-label="Design toolkit"></div>
+    <div class="menu" role="menu"></div>
+    <div class="tip" role="tooltip"></div>
+    <div class="toast" role="status" aria-live="polite"></div>
   `;
   const bar = root.querySelector(".bar");
+  const menu = root.querySelector(".menu");
+  const tip = root.querySelector(".tip");
+  const toast = root.querySelector(".toast");
   const hoverBox = root.querySelector(".box.hover");
   const selBox = root.querySelector(".box.sel");
   const handle = root.querySelector(".handle");
@@ -269,60 +299,123 @@
   const spaceLayer = root.querySelector(".space");
   const panel = root.querySelector(".panel");
 
+  const stroke = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICON = {
-    type: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 6a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H8v5a1 1 0 1 1-2 0V7H3a1 1 0 0 1-1-1Zm14 0a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2h-4a1 1 0 0 1-1-1Zm-4 6a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2h-8a1 1 0 0 1-1-1Zm-9 6a1 1 0 0 1 1-1h17a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Z" clip-rule="evenodd"/></svg>',
-    radius: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 20v-8a7 7 0 0 1 7-7h7"/></svg>',
-    move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>',
-    spacing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><rect x="8.5" y="8.5" width="7" height="7" rx="1" stroke-dasharray="2 2"/></svg>',
-    reset: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.47 2.5a1 1 0 0 1 1 1v1.57A9.47 9.47 0 0 1 11.97 2.5a9.5 9.5 0 1 1-9.43 10.62 1 1 0 0 1 1.98-.23A7.5 7.5 0 1 0 6.38 7H9a1 1 0 1 1 0 2H4.47a1 1 0 0 1-1-.96V3.5a1 1 0 0 1 1-1Z"/></svg>',
+    type: stroke('<path d="M6 5.5h12M12 5.5v13M9.5 18.5h5"/>'),
+    radius: stroke('<path d="M5.5 18.5v-7a6 6 0 0 1 6-6h7"/>'),
+    spacing: stroke('<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1" stroke-dasharray="2 2"/>'),
+    move: stroke('<path d="M6 4.5 18.5 10l-5.6 1.9-1.9 5.6Z"/>'),
+    chev: stroke('<path d="m7 10 5 5 5-5"/>'),
+    check: stroke('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
   };
+
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
+  const MOD = isMac ? "⌘" : "Ctrl";
+  const TOOLS = [
+    ["text", "Text", "T"],
+    ["radius", "Radius", "R"],
+    ["spacing", "Spacing", "S"],
+    ["move", "Move", "V"],
+  ];
+  let menuOpen = null; // null | "move" | "copy"
+
   function render() {
     const n = count();
-    const btn = (id, label, key) =>
-      `<button class="tool" data-tool="${id}" aria-pressed="${tool === id}" title="${label} (${key})">${ICON[id === "text" ? "type" : id]}${label} <kbd>${key}</kbd></button>`;
-    let html = btn("text", "Text", "T") + btn("radius", "Radius", "R") + btn("spacing", "Spacing", "S") + btn("move", "Move", "V");
-    const sw = (id, on, label, title) => `<button class="toggle" data-toggle="${id}" aria-pressed="${on}" title="${title}"><span class="switch" aria-hidden="true"></span>${label}</button>`;
-    if (tool === "move") {
-      html += `<span class="sep"></span>${sw("absolute", moveAbsolute, "Absolute", moveAbsolute ? "On: drag anywhere, Claude positions it absolutely" : "Off: drag into containers, Claude moves it in the layout")}`;
-      if (moveAbsolute) html += sw("shot", moveScreenshot, "Screenshot", "Copy a cropped screenshot of absolute moves first, then the prompt");
+    let html = "";
+    for (const [id, label, key] of TOOLS) {
+      html += `<button class="tool" data-tool="${id}" aria-pressed="${tool === id}" aria-label="${label}" aria-keyshortcuts="${key}" data-tip="${label}" data-key="${key}">${ICON[id === "text" ? "type" : id]}</button>`;
+      if (id === "move") html += `<button class="chev" data-menu="move" aria-haspopup="menu" aria-expanded="${menuOpen === "move"}" aria-label="Move options" data-tip="Move options">${ICON.chev}</button>`;
     }
-    if (boxTool() || radiusEdits.size || spaceEdits.size || moveEdits.size) {
-      html += `<span class="sep"></span>
-        <button class="toggle" data-toggle="tokens" aria-pressed="${useTokens}" title="${useTokens ? "On: Claude uses your existing design tokens, rounding to the nearest one" : "Off: Claude uses the exact value, even if no token exists yet"}"><span class="switch" aria-hidden="true"></span>Tokens</button>`;
-    }
-    if (status === "done" || status === "error") {
-      html += `<span class="sep"></span><span class="note ${status === "error" ? "err" : ""}" role="status" title="${esc(message)}">${esc(message)}</span>`;
-    }
-    if (n > 0) {
-      html += `<span class="sep"></span>
-        <span class="note count">${n} edit${n === 1 ? "" : "s"}</span>
-        <button class="icon reset" title="Revert all edits" aria-label="Revert all edits">${ICON.reset}</button>
-        <button class="copy" title="Copy a prompt for Claude (${isMac ? "⌘" : "Ctrl"}↵)">Copy prompt <kbd>${isMac ? "⌘" : "Ctrl"}↵</kbd></button>`;
-    }
+    html += `<span class="sep"></span>
+      <button class="copy" aria-disabled="${n === 0}" data-tip="${n ? "Copy prompt" : "Make an edit first"}" data-key="${n ? `${MOD}↵` : ""}">Copy prompt${n ? `<span class="badge">${n}</span>` : ""}</button>
+      <button class="chev" data-menu="copy" aria-haspopup="menu" aria-expanded="${menuOpen === "copy"}" aria-label="Prompt options" data-tip="Prompt options">${ICON.chev}</button>`;
     bar.innerHTML = html;
+
+    /* Status floats above the toolbar instead of pushing the tools around. */
+    const show = status === "done" || status === "error";
+    toast.textContent = show ? message : "";
+    toast.classList.toggle("err", status === "error");
+    if (show) {
+      const b = bar.getBoundingClientRect();
+      Object.assign(toast.style, { display: "block", bottom: `${innerHeight - b.top + 10}px` });
+    } else toast.style.display = "none";
+    renderMenu();
   }
+
+  /* Option menus, opened from the chevrons like Figma's tool menus. */
+  function renderMenu() {
+    if (!menuOpen) return (menu.style.display = "none");
+    const item = (attrs, checked, label, hint, disabled = false) =>
+      `<button class="mi" ${attrs} aria-checked="${checked}" aria-disabled="${disabled}">${ICON.check}<span>${label}</span>${hint ? `<small>${hint}</small>` : ""}</button>`;
+    if (menuOpen === "move") {
+      menu.innerHTML = `<div class="mh">Move</div>
+        ${item('role="menuitemradio" data-set="flow"', !moveAbsolute, "Flow", "Drop into containers. Claude moves it in the layout.")}
+        ${item('role="menuitemradio" data-set="absolute"', moveAbsolute, "Absolute", "Place anywhere. Claude positions it absolutely.")}
+        <hr />
+        ${item('role="menuitemcheckbox" data-set="shot"', moveScreenshot, "Screenshot", "Copy an annotated screenshot of absolute moves first.", !moveAbsolute)}`;
+    } else {
+      const n = count();
+      menu.innerHTML = `<div class="mh">Prompt</div>
+        ${item('role="menuitemcheckbox" data-set="tokens"', useTokens, "Use design tokens", useTokens ? "Round values to your existing tokens." : "Off: exact values, even without a token.")}
+        <hr />
+        ${item('role="menuitem" data-set="revert"', false, `Revert all edits${n ? ` (${n})` : ""}`, "", n === 0)}`;
+    }
+    menu.style.display = "block";
+    const anchor = bar.querySelector(`[data-menu="${menuOpen}"]`).getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    const w = menu.offsetWidth;
+    Object.assign(menu.style, { left: `${Math.max(8, Math.min(anchor.right - w, innerWidth - w - 8))}px`, bottom: `${innerHeight - b.top + 8}px` });
+  }
+
+  const setMenu = (name) => {
+    menuOpen = name;
+    tip.style.display = "none";
+    render();
+  };
 
   bar.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
     if (b.dataset.tool) setTool(tool === b.dataset.tool ? null : b.dataset.tool);
-    else if (b.dataset.toggle) {
-      const t = b.dataset.toggle;
-      if (t === "tokens") useTokens = !useTokens;
-      if (t === "absolute") moveAbsolute = !moveAbsolute;
-      if (t === "shot") moveScreenshot = !moveScreenshot;
-      try {
-        localStorage.setItem("ptk-tokens", useTokens ? "on" : "off");
-        localStorage.setItem("ptk-move", moveAbsolute ? "absolute" : "flow");
-        localStorage.setItem("ptk-shot", moveScreenshot ? "on" : "off");
-      } catch {}
-      render();
-    } else if (b.classList.contains("reset")) revertAll();
-    else if (b.classList.contains("copy")) copy();
+    else if (b.dataset.menu) setMenu(menuOpen === b.dataset.menu ? null : b.dataset.menu);
+    else if (b.classList.contains("copy") && count()) copy();
   });
+
+  menu.addEventListener("click", (e) => {
+    const b = e.target.closest(".mi");
+    if (!b) return;
+    const set = b.dataset.set;
+    if (set === "flow") moveAbsolute = false;
+    if (set === "absolute") moveAbsolute = true;
+    if (set === "shot") moveScreenshot = !moveScreenshot;
+    if (set === "tokens") useTokens = !useTokens;
+    if (set === "revert") {
+      menuOpen = null;
+      return revertAll();
+    }
+    try {
+      localStorage.setItem("ptk-tokens", useTokens ? "on" : "off");
+      localStorage.setItem("ptk-move", moveAbsolute ? "absolute" : "flow");
+      localStorage.setItem("ptk-shot", moveScreenshot ? "on" : "off");
+    } catch {}
+    if (set === "flow" || set === "absolute") menuOpen = null;
+    render();
+  });
+
+  /* Tooltips: name and shortcut above the hovered button, like Figma's. */
+  bar.addEventListener("pointerover", (e) => {
+    const b = e.target.closest("[data-tip]");
+    if (!b || menuOpen) return (tip.style.display = "none");
+    tip.innerHTML = `${esc(b.dataset.tip)}${b.dataset.key ? `<kbd>${esc(b.dataset.key)}</kbd>` : ""}`;
+    tip.style.display = "block";
+    const r = b.getBoundingClientRect();
+    const bb = bar.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    Object.assign(tip.style, { left: `${Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8))}px`, bottom: `${innerHeight - bb.top + 8}px` });
+  });
+  bar.addEventListener("pointerleave", () => (tip.style.display = "none"));
 
   function setTool(next) {
     if (editing) commit(editing);
@@ -1669,7 +1762,19 @@ ${how.join("\n\n")}`;
     hovered = pickFor(e.target);
   }, true);
 
+  /* Option menus close on any press outside them (their own chevron toggles them itself). */
+  window.addEventListener("pointerdown", (e) => {
+    if (!menuOpen) return;
+    const path = e.composedPath();
+    if (!path.includes(menu) && !path.some((n) => n.dataset?.menu)) setMenu(null);
+  }, true);
+
   window.addEventListener("keydown", (e) => {
+    if (menuOpen && e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      return setMenu(null);
+    }
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key === "Enter" && (count() || editing)) {
       e.preventDefault();
