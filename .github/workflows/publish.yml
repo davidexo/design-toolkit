@@ -1,0 +1,58 @@
+# Publishes design-toolkit to npm on every push to main that changes the package.
+# Uses npm trusted publishing (OIDC): no token in the repo, provenance on every release.
+# Version: package.json if you raised it past npm's latest, otherwise the next patch after npm's latest.
+name: Publish to npm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - toolkit.js
+      - react.js
+      - index.d.ts
+      - react.d.ts
+      - package.json
+      - README.md
+  workflow_dispatch:
+
+permissions:
+  contents: write # push the version tag
+  id-token: write # trusted publishing
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Pick the version
+        id: version
+        run: |
+          latest=$(npm view design-toolkit version 2>/dev/null || echo 0.0.0)
+          local=$(node -p "require('./package.json').version")
+          next=$(node -e '
+            const [l, p] = process.argv.slice(1).map((v) => v.split(".").map(Number));
+            const newer = p[0] - l[0] || p[1] - l[1] || p[2] - l[2];
+            console.log(newer > 0 ? p.join(".") : [l[0], l[1], l[2] + 1].join("."));
+          ' "$latest" "$local")
+          echo "npm has $latest, package.json has $local, publishing $next"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        run: |
+          npm version "${{ steps.version.outputs.next }}" --no-git-tag-version --allow-same-version
+          npm publish --provenance --access public
+
+      - name: Tag the release
+        run: |
+          git tag "v${{ steps.version.outputs.next }}"
+          git push origin "v${{ steps.version.outputs.next }}"

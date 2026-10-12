@@ -1,6 +1,6 @@
 {
   "name": "design-toolkit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A minimal toolbar for dialing in design while vibe coding: tweak text, radius, spacing and layout on localhost, copy one prompt for your coding agent.",
   "license": "MIT",
   "author": "David Bielenberg (https://github.com/davidexo)",
