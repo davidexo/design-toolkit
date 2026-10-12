@@ -1,6 +1,6 @@
 {
   "name": "design-toolkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A minimal toolbar for dialing in design while vibe coding: tweak text, radius, spacing and layout on localhost, copy one prompt for your coding agent.",
   "license": "MIT",
   "author": "David Bielenberg (https://github.com/davidexo)",
@@ -10,7 +10,17 @@
     "url": "git+https://github.com/davidexo/design-toolkit.git"
   },
   "bugs": "https://github.com/davidexo/design-toolkit/issues",
-  "keywords": ["design", "devtools", "vibe-coding", "claude-code", "ai", "prompt", "spacing", "radius", "figma"],
+  "keywords": [
+    "design",
+    "devtools",
+    "vibe-coding",
+    "claude-code",
+    "ai",
+    "prompt",
+    "spacing",
+    "radius",
+    "figma"
+  ],
   "type": "module",
   "main": "./toolkit.js",
   "types": "./index.d.ts",
@@ -26,8 +36,15 @@
     "./toolkit.js": "./toolkit.js",
     "./package.json": "./package.json"
   },
-  "files": ["toolkit.js", "index.d.ts", "react.js", "react.d.ts"],
-  "sideEffects": ["./toolkit.js"],
+  "files": [
+    "toolkit.js",
+    "index.d.ts",
+    "react.js",
+    "react.d.ts"
+  ],
+  "sideEffects": [
+    "./toolkit.js"
+  ],
   "peerDependencies": {
     "react": ">=17"
   },
