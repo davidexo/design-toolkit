@@ -221,18 +221,6 @@
       }
       .bar .notch:hover::after, .bar .notch[aria-expanded="true"]::after { opacity: .9; }
       .bar [data-needs-edits][hidden] { display: none; }
-      /* "Add to Figma": appears above the toolbar while Move has a selection. */
-      .addfig {
-        all: unset; box-sizing: border-box; position: fixed; z-index: 2147483647; display: none; align-items: center; gap: 6px;
-        height: 32px; padding: 0 12px; border-radius: 999px; cursor: pointer; background: #fff; color: #141414;
-        font: 520 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em; -webkit-font-smoothing: antialiased;
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, .08), 0 8px 24px rgba(0, 0, 0, .25); animation: rise .25s cubic-bezier(.22, 1.14, .36, 1) both;
-        transition: transform .16s cubic-bezier(.23, 1, .32, 1);
-      }
-      .addfig:hover { background: rgba(255, 255, 255, .9); }
-      .addfig:active { transform: scale(.97); }
-      .addfig:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
-      .bar .slot[data-needs-edits]:not([hidden]) { animation: pop .3s cubic-bezier(.3, 1.42, .4, 1) both; }
       .split { width: 1px; height: 20px; margin: 0 5px; flex: none; background: rgba(var(--ink-rgb), .12); }
       /* Copy prompt: the one action, so an icon button like the tools but filled in the accent, never dimmed once there is something to copy. */
       .bar .copy {
@@ -353,6 +341,16 @@
         -webkit-font-smoothing: antialiased; user-select: none;
         overflow: auto; overscroll-behavior: contain;
       }
+      /* Add to Figma: the panel's one action, full width at the bottom. */
+      .panel section[data-sec="figma"] { padding-top: 16px; }
+      .panel .addfig {
+        all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; height: 32px;
+        border-radius: 8px; cursor: pointer; background: rgb(var(--ink-rgb)); color: rgb(var(--elev-rgb)); font-weight: 520; font-size: 12px;
+        transition: opacity .2s, transform .16s cubic-bezier(.23, 1, .32, 1);
+      }
+      .panel .addfig:hover { opacity: .88; }
+      .panel .addfig:active { transform: scale(.98); }
+      .panel .addfig:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
       .panel .hint { margin: 0; padding: 12px; color: rgba(var(--ink-rgb), .5); line-height: 1.4; }
       .panel[data-empty] section, .panel:not([data-empty]) .hint { display: none; }
       .panel header { padding: 10px 12px 8px; border-bottom: 1px solid rgba(var(--ink-rgb), .08); display: grid; gap: 4px; }
@@ -372,7 +370,51 @@
         background-image: linear-gradient(var(--sw, transparent), var(--sw, transparent)), repeating-conic-gradient(rgba(var(--ink-rgb), .25) 0 25%, transparent 0 50%);
         background-size: auto, 6px 6px;
       }
-      .panel .f.c .sw input { position: absolute; inset: -4px; width: 22px; height: 22px; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+      .panel .f.c .sw { all: unset; box-sizing: border-box; position: relative; flex: none; width: 14px; height: 14px; border-radius: 4px; cursor: pointer;
+        box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .2);
+        background-image: linear-gradient(var(--sw, transparent), var(--sw, transparent)), repeating-conic-gradient(rgba(var(--ink-rgb), .25) 0 25%, transparent 0 50%);
+        background-size: auto, 6px 6px; }
+      .panel .f.c .sw:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
+      .panel .f.c .sw[aria-expanded="true"] { box-shadow: 0 0 0 2px rgb(var(--elev-rgb)), 0 0 0 3px ${BLUE}; }
+
+      /* PERMANENT ui's colour picker, unfolded in place under the field: presets, a saturation/brightness
+         field, a hue strip, then hex and the eyedropper. Hue is kept while dragging through grey or black. */
+      .cp { display: grid; gap: 12px; margin-top: 8px; padding: 10px; border-radius: 10px; background: rgba(var(--ink-rgb), .06);
+        animation: cp-open .32s cubic-bezier(.23, 1, .32, 1) both; }
+      @keyframes cp-open { from { opacity: 0; transform: translateY(-4px); } }
+      .cp-presets { display: flex; justify-content: space-between; }
+      .cp-preset { all: unset; position: relative; width: 18px; height: 18px; border-radius: 999px; background: var(--c); cursor: pointer;
+        box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1); transition: scale .15s cubic-bezier(.23, 1, .32, 1); }
+      .cp-preset[aria-checked="true"] { box-shadow: 0 0 0 2px rgb(var(--elev-rgb)), 0 0 0 4px var(--c); }
+      .cp-preset:hover { scale: 1.12; }
+      .cp-preset:active { scale: .96; }
+      .cp-preset::before { content: ""; position: absolute; inset: -4px; }
+      .cp-preset:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 4px; }
+      .cp-field { position: relative; height: 128px; border-radius: 6px; cursor: crosshair; touch-action: none;
+        background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, var(--hue));
+        box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .08); }
+      .cp-hue { position: relative; height: 12px; margin: 0 6px; border-radius: 999px; cursor: ew-resize; touch-action: none;
+        background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00); }
+      .cp-hue::before { content: ""; position: absolute; inset: 0 -6px; border-radius: inherit; background: inherit; }
+      .cp-hue::after { content: ""; position: absolute; inset: -10px -6px; }
+      .cp-field:focus-visible, .cp-hue:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 3px; }
+      .cp-knob { position: absolute; z-index: 1; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 999px; pointer-events: none;
+        box-shadow: 0 0 0 2.5px #fff, 0 0 0 3.5px rgba(0, 0, 0, .18), 0 2px 8px rgba(0, 0, 0, .35); transition: scale .15s cubic-bezier(.23, 1, .32, 1); }
+      .cp-field:active .cp-knob, .cp-hue:active .cp-knob { scale: 1.15; }
+      .cp-foot { display: flex; gap: 6px; }
+      .cp-hexf { display: flex; flex: 1; align-items: center; gap: 2px; height: 28px; padding: 0 10px; border-radius: 999px;
+        background: rgb(var(--elev-rgb)); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1); color: rgba(var(--ink-rgb), .4);
+        font: 400 12px/1 ui-monospace, "SF Mono", Menlo, monospace; }
+      .cp-hexf:focus-within { box-shadow: inset 0 0 0 1px ${BLUE}; }
+      .cp-hexf input { all: unset; flex: 1; min-width: 0; color: rgba(var(--ink-rgb), .9); text-transform: lowercase; cursor: text; }
+      .cp-drop { all: unset; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; cursor: pointer;
+        background: rgb(var(--elev-rgb)); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1); color: rgba(var(--ink-rgb), .6);
+        transition: color .15s, scale .15s; }
+      .cp-drop:hover { color: rgba(var(--ink-rgb), .95); }
+      .cp-drop:active { scale: .96; }
+      .cp-drop:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
+      .cp-drop svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+      @media (prefers-reduced-motion: reduce) { .cp, .cp-preset, .cp-knob, .cp-drop { animation: none; transition-duration: 1ms; } }
       .panel .f {
         display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px; border-radius: 8px;
         background: rgba(var(--ink-rgb), .05); box-shadow: inset 0 0 0 1px transparent; transition: box-shadow .12s;
@@ -438,15 +480,18 @@
       <section data-sec="fill">
         <h4>Fill</h4>
         <div class="row1">
-          <label class="f c" data-f="fill" title="Background colour"><span class="sw"><input type="color" tabindex="-1" aria-label="Pick fill colour"></span><input class="hex" spellcheck="false" aria-label="Fill colour"></label>
+          <div class="f c" data-f="fill" title="Background colour"><button class="sw" type="button" aria-label="Open fill colour picker" aria-expanded="false"></button><input class="hex" spellcheck="false" aria-label="Fill colour"></div>
         </div>
       </section>
       <section data-sec="border">
         <h4>Border</h4>
         <div class="row">
           <label class="f" data-f="border" title="Border width"><span class="k">W</span><input inputmode="decimal" aria-label="Border width"></label>
-          <label class="f c" data-f="border-color" title="Border colour"><span class="sw"><input type="color" tabindex="-1" aria-label="Pick border colour"></span><input class="hex" spellcheck="false" aria-label="Border colour"></label>
+          <div class="f c" data-f="border-color" title="Border colour"><button class="sw" type="button" aria-label="Open border colour picker" aria-expanded="false"></button><input class="hex" spellcheck="false" aria-label="Border colour"></div>
         </div>
+      </section>
+      <section data-sec="figma">
+        <button class="addfig" type="button">Add to Figma</button>
       </section>
     </aside>
     <style>
@@ -1044,7 +1089,6 @@
     paintSpacing(tool === "spacing" ? r : null);
     paintPanel();
     paintMove(tool === "move" ? r : null);
-    paintFigma();
   }
 
   /* Pages scroll and animate under the overlay, so it follows every frame while a box tool is on. */
@@ -1793,19 +1837,9 @@
   const insertLine = Object.assign(document.createElement("div"), { className: "insert" });
   root.append(insertLine);
 
-  /* Add to Figma: with Move and a selection, one click copies a prompt for the agent to capture that element
+  /* Add to Figma (in the side panel): one click copies a prompt for the agent to capture that element
      into Figma through the Figma MCP server (its generate_figma_design capture). */
-  const figButton = Object.assign(document.createElement("button"), { className: "addfig", type: "button", textContent: "Add to Figma" });
-  root.append(figButton);
-
-  function paintFigma() {
-    const show = tool === "move" && selected?.isConnected && !drag && !menuOpen && status === "idle";
-    figButton.style.display = show ? "inline-flex" : "none";
-    if (!show) return;
-    const b = bar.getBoundingClientRect();
-    const w = figButton.offsetWidth;
-    Object.assign(figButton.style, { left: `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`, ...nextToBar(8) });
-  }
+  const figButton = panel.querySelector(".addfig");
 
   function figmaPrompt(el) {
     const d = describe(el);
@@ -2122,12 +2156,14 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     if (!on) {
       panel.style.display = "none";
       lastPanelFor = null;
+      closePicker();
       return;
     }
     panel.style.display = "block";
     const has = !!selected?.isConnected;
     panel.toggleAttribute("data-empty", !has);
     if (!has) {
+      closePicker();
       panel.querySelector(".el").textContent = "No selection";
       panel.querySelector(".comp").textContent = "";
       lastPanelFor = null;
@@ -2135,6 +2171,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     }
     if (lastPanelFor !== selected) {
       lastPanelFor = selected;
+      closePicker();
       const d = describe(selected);
       const cls = [...selected.classList].filter((c) => !c.startsWith("ptk"))[0];
       panel.querySelector(".el").textContent = `<${d.tag}>${cls ? ` .${cls.replace(/^[A-Za-z]+-module__[A-Za-z0-9_-]+__/, "")}` : ""}`;
@@ -2151,9 +2188,9 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
       const color = f.dataset.f === "fill" ? cs.backgroundColor : readField("border-color") === "none" ? "transparent" : cs.borderTopColor;
       f.querySelector(".sw").style.setProperty("--sw", color);
       const hex = hexOf(color);
-      if (/^#[0-9a-f]{6}$/.test(hex) && root.activeElement !== f.querySelector("[type=color]")) f.querySelector("[type=color]").value = hex;
+      if (cp.for === f.dataset.f) syncPicker(hex);
     }
-    for (const input of panel.querySelectorAll(".f input:not([type=color])")) {
+    for (const input of panel.querySelectorAll(".f input")) {
       if (input === focused) continue;
       const value = readField(input.closest(".f").dataset.f);
       if (value === "Mixed") {
@@ -2180,6 +2217,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     const input = e.target.closest?.("input");
     if (!input) return;
     e.stopPropagation(); // the page and the toolkit's own shortcuts stay quiet while typing
+    if (!input.closest(".f")) return; // the colour picker's hex field handles its own keys
     const f = input.closest(".f").dataset.f;
     if (e.key === "Enter") {
       e.preventDefault();
@@ -2198,13 +2236,160 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
   });
   panel.addEventListener("focusout", (e) => {
     const input = e.target.closest?.("input");
-    if (input && selected) applyFieldInput(input);
+    if (input && selected && input.closest(".f")) applyFieldInput(input);
   });
   panel.addEventListener("focusin", (e) => e.target.select?.());
-  panel.addEventListener("input", (e) => {
-    if (e.target.type !== "color" || !selected) return;
-    writeField(e.target.closest(".f").dataset.f, e.target.value);
+
+  /* ---------- colour picker (PERMANENT ui's ColorPicker, in the panel) ---------- */
+
+  const PRESETS = ["#4c9df5", "#6e56cf", "#d6409f", "#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#12a594", "#141414"];
+  const clamp01 = (n) => Math.min(1, Math.max(0, n));
+  function hexToHsv(hex) {
+    const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
+    if (!m) return null;
+    const h6 = m[1].length === 3 ? m[1].replace(/./g, "$&$&") : m[1];
+    const n = parseInt(h6, 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    let h = 0;
+    if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (h * 60 + 360) % 360, s: max ? d / max : 0, v: max };
+  }
+  function hsvToHex({ h, s, v }) {
+    const f = (n) => {
+      const k = (n + h / 60) % 6;
+      return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1))));
+    };
+    return `#${[f(5), f(3), f(1)].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  const cpEl = document.createElement("div");
+  cpEl.className = "cp";
+  cpEl.innerHTML = `<div class="cp-presets" role="radiogroup" aria-label="Presets">${PRESETS.map((p) => `<button class="cp-preset" type="button" role="radio" aria-checked="false" aria-label="${p}" data-c="${p}" style="--c:${p}"></button>`).join("")}</div>
+    <div class="cp-field" role="slider" tabindex="0" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span class="cp-knob"></span></div>
+    <div class="cp-hue" role="slider" tabindex="0" aria-label="Hue" aria-valuemin="0" aria-valuemax="360"><span class="cp-knob"></span></div>
+    <div class="cp-foot"><label class="cp-hexf"><span aria-hidden="true">#</span><input spellcheck="false" aria-label="Hex"></label>${
+      window.EyeDropper ? `<button class="cp-drop" type="button" aria-label="Pick a colour from the screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5 3 3M4 20l1.2-3.6L13 8.6l2.4 2.4-7.8 7.8L4 20Zm11-15.5 1.4-1.4a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L19.5 9"/></svg></button>` : ""
+    }</div>`;
+  const cpField = cpEl.querySelector(".cp-field");
+  const cpHue = cpEl.querySelector(".cp-hue");
+  const cpHex = cpEl.querySelector(".cp-hexf input");
+  const cp = { for: null, hsv: { h: 210, s: 0.7, v: 0.96 }, hex: "" };
+
+  function drawPicker() {
+    const { h, s, v } = cp.hsv;
+    const hex = hsvToHex(cp.hsv);
+    const hueColor = `hsl(${h} 100% 50%)`;
+    cpField.style.setProperty("--hue", hueColor);
+    Object.assign(cpField.firstElementChild.style, { left: `${s * 100}%`, top: `${(1 - v) * 100}%`, background: hex });
+    Object.assign(cpHue.firstElementChild.style, { left: `${(h / 360) * 100}%`, top: "50%", background: hueColor });
+    cpField.setAttribute("aria-valuenow", Math.round(s * 100));
+    cpField.setAttribute("aria-valuetext", `saturation ${Math.round(s * 100)}%, brightness ${Math.round(v * 100)}%`);
+    cpHue.setAttribute("aria-valuenow", Math.round(h));
+    if (root.activeElement !== cpHex) cpHex.value = hex.slice(1);
+    cpEl.querySelectorAll(".cp-preset").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.c === hex)));
+  }
+
+  /* A value set from outside (typed in the field, another element) moves the handles; our own drags keep their hue. */
+  function syncPicker(hex) {
+    if (hex === cp.hex) return;
+    cp.hex = hex;
+    const next = hexToHsv(hex);
+    if (next && hsvToHex(cp.hsv) !== hex) cp.hsv = next.s === 0 ? { ...next, h: cp.hsv.h } : next;
+    drawPicker();
+  }
+
+  function commitPicker(next) {
+    cp.hsv = next;
+    cp.hex = hsvToHex(next);
+    drawPicker();
+    if (selected && cp.for) writeField(cp.for, cp.hex);
+  }
+
+  function openPicker(f) {
+    closePicker();
+    const field = panel.querySelector(`.f.c[data-f="${f}"]`);
+    cp.for = f;
+    cp.hex = "";
+    field.querySelector(".sw").setAttribute("aria-expanded", "true");
+    field.parentElement.after(cpEl);
+    syncPicker(hexToHsv(readField(f)) ? readField(f) : "#4c9df5");
+  }
+  function closePicker() {
+    if (!cp.for) return;
+    panel.querySelector(`.f.c[data-f="${cp.for}"] .sw`)?.setAttribute("aria-expanded", "false");
+    cp.for = null;
+    cpEl.remove();
+  }
+
+  panel.addEventListener("click", (e) => {
+    const sw = e.target.closest(".f.c .sw");
+    if (!sw) return;
+    const f = sw.closest(".f").dataset.f;
+    cp.for === f ? closePicker() : openPicker(f);
   });
+  cpEl.addEventListener("click", async (e) => {
+    const preset = e.target.closest(".cp-preset");
+    if (preset) {
+      const next = hexToHsv(preset.dataset.c);
+      if (next) commitPicker(next.s === 0 ? { ...next, h: cp.hsv.h } : next);
+      return;
+    }
+    if (e.target.closest(".cp-drop") && window.EyeDropper) {
+      try {
+        const { sRGBHex } = await new window.EyeDropper().open();
+        const next = hexToHsv(sRGBHex);
+        if (next) commitPicker(next);
+      } catch {} // dismissed
+    }
+  });
+  const fromField = (e) => {
+    const r = cpField.getBoundingClientRect();
+    commitPicker({ h: cp.hsv.h, s: clamp01((e.clientX - r.left) / r.width), v: clamp01(1 - (e.clientY - r.top) / r.height) });
+  };
+  const fromHue = (e) => {
+    const r = cpHue.getBoundingClientRect();
+    commitPicker({ ...cp.hsv, h: clamp01((e.clientX - r.left) / r.width) * 359.9 });
+  };
+  for (const [el, fn] of [[cpField, fromField], [cpHue, fromHue]]) {
+    el.addEventListener("pointerdown", (e) => {
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {}
+      fn(e);
+    });
+    el.addEventListener("pointermove", (e) => e.buttons & 1 && fn(e));
+  }
+  cpField.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 0.1 : 0.02;
+    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    commitPicker({ ...cp.hsv, s: clamp01(cp.hsv.s + d[0]), v: clamp01(cp.hsv.v + d[1]) });
+  });
+  cpHue.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 30 : 5;
+    const d = { ArrowLeft: -step, ArrowDown: -step, ArrowRight: step, ArrowUp: step }[e.key];
+    if (d === undefined) return;
+    e.preventDefault();
+    commitPicker({ ...cp.hsv, h: (cp.hsv.h + d + 360) % 360 });
+  });
+  const applyHex = () => {
+    const v = cpHex.value.replace(/[^0-9a-f]/gi, "");
+    const next = hexToHsv(`#${v}`);
+    if (next) commitPicker(next.s === 0 ? { ...next, h: cp.hsv.h } : next);
+    else drawPicker();
+  };
+  cpHex.addEventListener("input", () => (cpHex.value = cpHex.value.replace(/[^0-9a-f]/gi, "").slice(0, 6)));
+  cpHex.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") applyHex();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      drawPicker();
+      cpHex.blur();
+    }
+  });
+  cpHex.addEventListener("blur", applyHex);
 
   /* Scrub: drag a field's label sideways. 1px of mouse is 1px of value, snapped to the grid unless ⌥/⌘. */
   panel.addEventListener("pointerdown", (e) => {

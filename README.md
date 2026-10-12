@@ -62,7 +62,7 @@ Everything snaps to a 2px grid, typed values included (13 becomes 14).
 
 **Panel.** While Move, Radius or Spacing is on, a panel docks on the right (the page moves over to make room) and shows the selected element and its
 Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner button), Margin, Fill and Border
-(width and colour; click a swatch for the colour picker, or type hex, rgba or none).
+(width and colour; click a swatch to unfold PERMANENT ui's colour picker with presets, a saturation/brightness field, a hue strip, hex and an eyedropper, or type hex, rgba or none in the field).
 Type a value, step with `↑` `↓`, `Tab` between fields, or drag a field's label to scrub, like Figma's
 design sidebar.
 
@@ -71,7 +71,7 @@ nearest one. Off: exact values, even if no token exists yet. Remembered per brow
 
 **Appearance** (same menu). Dark (default), Light, or Auto to follow the system. Remembered per browser.
 
-**Add to Figma.** With Move and a selection, an **Add to Figma** button appears above the toolbar. It copies a prompt that tells your agent to capture that element into Figma with the Figma MCP server (generate_figma_design), as editable layers.
+**Add to Figma.** The side panel ends with an **Add to Figma** button for the selected element. It copies a prompt that tells your agent to capture that element into Figma with the Figma MCP server (generate_figma_design), as editable layers.
 
 **Options.** Tools with a corner wedge (Move, Copy prompt) open their options from the wedge, a right-click, or a long press.
 
