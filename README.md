@@ -43,9 +43,8 @@ to your dev page.
 | Key | Tool |
 | --- | --- |
 | `T` | **Text**: click any copy and type, `↵` or `Esc` to leave the field. Double-click text with Move, Radius or Spacing on to jump straight into Text |
-| `R` | **Radius**: click any box, drag the corner handle, `↑` `↓` to step, `↵` or click the value to type |
 | `S` | **Spacing**: click any element, drag its padding (green), margin (orange) or gap (purple) bands, click a number to type |
-| `V` | **Move**: drag an element into any container (flow), or anywhere with **Absolute** picked from the corner wedge on Move; arrows reorder (flow) or nudge (absolute) |
+| `V` | **Move**: select anything (the toolkit opens on Move), drag its corner handle to change the radius, drag an element into any container (flow), or anywhere with **Absolute** picked from the corner wedge on Move; arrows reorder (flow) or nudge (absolute) |
 | `C` | **Comment**: click any element, or select some text, and type a note; `↵` adds it, `⇧↵` for a new line. Numbered pins mark each comment, click one to edit or delete it |
 
 Everything snaps to a 2px grid, typed values included (13 becomes 14).
@@ -72,6 +71,10 @@ nearest one. Off: exact values, even if no token exists yet. Remembered per brow
 **Appearance** (same menu). Dark (default), Light, or Auto to follow the system. Remembered per browser.
 
 **Add to Figma.** The side panel ends with an **Add to Figma** button for the selected element. It copies a prompt that tells your agent to capture that element into Figma with the Figma MCP server (generate_figma_design), as editable layers.
+
+**Undo.** `⌘Z` undoes the last toolkit action (a drag, a typed value, a text edit, a delete, a comment) and `⌘⇧Z` redoes it. While you type in a field it is the field's own undo; with nothing to undo the keys reach your app.
+
+**Selection** stays when you switch tools, and the side panel shows while something is selected.
 
 **Options.** Tools with a corner wedge (Move, Copy prompt) open their options from the wedge, a right-click, or a long press.
 

@@ -582,7 +582,6 @@
   const TOOLS = [
     ["move", "Move", "V"],
     ["text", "Text", "T"],
-    ["radius", "Radius", "R"],
     ["spacing", "Spacing", "S"],
     ["comment", "Comment", "C"],
   ];
@@ -610,6 +609,7 @@
   const badge = bar.querySelector(".badge");
 
   function render() {
+    if (history.length) scheduleCheckpoint();
     const n = count();
     bar.querySelectorAll(".tool").forEach((b) => b.setAttribute("aria-pressed", String(tool === b.dataset.tool)));
     bar.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", String(menuOpen === b.dataset.menu)));
@@ -696,7 +696,10 @@
     if (dragged) return; // the release at the end of a drag is not a click
     if (pressOpened) return void (pressOpened = false); // the release after a long press that opened options
     if (b.classList.contains("close")) return setCollapsed(true);
-    if (b.classList.contains("expand")) return setCollapsed(false);
+    if (b.classList.contains("expand")) {
+      setCollapsed(false);
+      return tool || setTool("move"); // opening the toolkit starts on Move
+    }
     if (b.dataset.tool) setTool(tool === b.dataset.tool ? null : b.dataset.tool);
     else if (b.dataset.menu) setMenu(menuOpen === b.dataset.menu ? null : b.dataset.menu);
     else if (b.classList.contains("copy") && count()) copy();
@@ -764,7 +767,7 @@
     if (next && collapsed) setCollapsed(false);
     if (editing) commit(editing);
     if (composing) closeNote();
-    select(null);
+    if (!next) select(null); // switching tools keeps the selection, like Figma; only leaving the toolkit clears it
     hovered = null;
     tool = next;
     if (next) document.documentElement.setAttribute("data-ptk-tool", next);
@@ -915,6 +918,7 @@
   function begin(el) {
     if (editing === el) return;
     if (editing) commit(editing);
+    rememberPristine(el);
     if (!originalText.has(el)) originalText.set(el, el.innerText.trim());
     for (const n of textNodes(el)) if (!originalNodeText.has(n)) originalNodeText.set(n, n.nodeValue);
     if (!textEdits.has(el)) {
@@ -1043,6 +1047,7 @@
 
   function select(el) {
     el = (el && inflowOwner.get(el)) ?? el;
+    if (el) rememberPristine(el);
     if (field && el !== selected) closeField(true);
     /* A panel field still holding focus applies to the old element (on blur) before the switch. */
     const active = root.activeElement;
@@ -1084,8 +1089,9 @@
   function paint() {
     const on = boxTool();
     place(hoverBox, on && hovered !== selected ? hovered : null);
-    const r = place(selBox, on ? selected : null);
-    paintRadius(tool === "radius" ? r : null);
+    const r = place(selBox, tool ? selected : null);
+    /* Move carries the radius handle (Radius is no longer a separate tool), hidden while the element is being moved. */
+    paintRadius((tool === "move" && drag?.kind !== "move" && drag?.kind !== "flow") || tool === "radius" ? r : null);
     paintSpacing(tool === "spacing" ? r : null);
     paintPanel();
     paintMove(tool === "move" ? r : null);
@@ -1176,6 +1182,7 @@
     handle.classList.toggle("drag", drag?.kind === "radius");
     const off = !isFull(selected, value) && Math.round(value) % GRID !== 0;
     if (field?.el !== tag) tag.innerHTML = `Radius ${radiusLabel(selected, Math.round(value))}${off ? ' <span class="off">· off grid</span>' : ""}`;
+    if (tool === "move" && drag?.kind !== "radius" && field?.el !== tag) return void (tag.style.display = "none");
     const below = r.bottom + 28 < innerHeight;
     Object.assign(tag.style, { display: "block", left: `${r.left}px`, top: below ? `${r.bottom + 6}px` : `${Math.max(4, r.top - 26)}px` });
   }
@@ -2131,8 +2138,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
   }
 
   let lastPanelFor = null;
-  /* Dock: while Move, Radius or Spacing is on, the panel sits on the right and the page makes room for it.
-     It docks with the tool, not the selection, so the page shifts once rather than on every click. */
+  /* Dock: while Move, Radius or Spacing has a selection, the panel sits on the right and the page makes room. */
   const DOCK = 260;
   let docked = null; // the page's own inline margin-right while docked
   function setDock(on) {
@@ -2151,7 +2157,8 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
   const dockWidth = () => (docked === null ? 0 : DOCK);
 
   function paintPanel() {
-    const on = tool === "move" || tool === "radius" || tool === "spacing";
+    /* Only once something is selected: the page makes room for the panel then, and gets it back on deselect. */
+    const on = !!tool && !!selected?.isConnected;
     setDock(on);
     if (!on) {
       panel.style.display = "none";
@@ -2565,6 +2572,146 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     } else if (target) openNote(target);
   }
 
+  /* ================= Undo / redo ================= */
+
+  /* Every finished action (a drag, a typed value, a text edit, a delete, a comment) becomes a checkpoint of
+     all toolkit state: the edit maps, the comments, each touched element's inline style and edited text, and
+     where the move copies sit. ⌘Z / ⌘⇧Z step between checkpoints. Elements are remembered as they were before
+     the toolkit first touched them, so undoing past an element's first edit puts it back exactly. */
+  const pristine = new WeakMap();
+  const touched = new Set();
+  function rememberPristine(el) {
+    if (pristine.has(el)) return;
+    pristine.set(el, { style: el.getAttribute("style"), text: snapshot(el) });
+    touched.add(el);
+  }
+
+  const copyProps = (e) => ({ ...e, props: new Map([...e.props].map(([k, v]) => [k, { ...v }])) });
+  const copyMap = (map, copy = (v) => ({ ...v })) => new Map([...map].map(([k, v]) => [k, copy(v)]));
+
+  function takeState() {
+    const els = new Map();
+    for (const el of touched) els.set(el, { style: el.getAttribute("style"), text: textEdits.has(el) ? snapshot(el) : null });
+    return {
+      els,
+      text: copyMap(textEdits),
+      radius: copyMap(radiusEdits),
+      space: copyMap(spaceEdits, copyProps),
+      style: copyMap(styleEdits, copyProps),
+      move: copyMap(moveEdits),
+      remove: copyMap(removeEdits),
+      comments: comments.map((c) => ({ ...c })),
+      artifacts: [...moveEdits.values()].flatMap((e) =>
+        [e.clone, e.inflow].filter(Boolean).map((node) => ({ node, parent: node.parentNode, next: node.nextSibling, style: node.getAttribute("style") })),
+      ),
+    };
+  }
+
+  /* What makes two states different, from the edits themselves (the elements' styles follow from them). */
+  const sig = (st) =>
+    JSON.stringify([
+      [...st.text.values()].map((e) => e.after),
+      [...st.radius.values()].map((e) => e.after),
+      [...st.space.values(), ...st.style.values()].map((e) => [...e.props].map(([k, v]) => k + v.after)),
+      [...st.move.values()].map((e) => [e.mode, e.dx, e.dy, e.to?.index]),
+      st.remove.size,
+      st.comments.map((c) => c.text),
+      st.artifacts.map((a) => a.style),
+    ]);
+
+  function applyState(st) {
+    if (editing) {
+      editing.removeAttribute("contenteditable");
+      editing.removeAttribute("data-ptk-editing");
+      editing = null;
+    }
+    closeField(false);
+    if (composing) closeNote();
+    /* Move copies: take away the ones this state does not have, put back the ones it does, where they were. */
+    const keep = new Set(st.artifacts.map((a) => a.node));
+    for (const e of moveEdits.values()) for (const n of [e.clone, e.inflow]) if (n && !keep.has(n)) n.remove();
+    for (const a of st.artifacts) {
+      if (a.parent && a.node.parentNode !== a.parent) a.parent.insertBefore(a.node, a.next?.parentNode === a.parent ? a.next : null);
+      if (a.style == null) a.node.removeAttribute("style");
+      else a.node.setAttribute("style", a.style);
+    }
+    for (const el of touched) {
+      const now = st.els.get(el) ?? pristine.get(el);
+      if (now.style == null) el.removeAttribute("style");
+      else el.setAttribute("style", now.style);
+      if (st.text.has(el) || textEdits.has(el)) restore(el, st.els.get(el)?.text ?? pristine.get(el).text);
+    }
+    const fill = (map, src, copy = (v) => ({ ...v })) => {
+      map.clear();
+      for (const [k, v] of src) map.set(k, copy(v));
+    };
+    fill(textEdits, st.text);
+    fill(radiusEdits, st.radius);
+    fill(spaceEdits, st.space, copyProps);
+    fill(styleEdits, st.style, copyProps);
+    fill(moveEdits, st.move);
+    fill(removeEdits, st.remove);
+    comments.length = 0;
+    comments.push(...st.comments.map((c) => ({ ...c })));
+    touched.forEach(mark);
+    if (selected && (!selected.isConnected || !selected.getClientRects().length)) select(null);
+    trackPins();
+    paintPins();
+    render();
+    paint();
+  }
+
+  let history = [];
+  let at = -1;
+  let checkpointTimer = null;
+  let pending = false; // an action happened since the last checkpoint
+  let restoring = false; // undo/redo is applying a state: that is not a new action
+  function checkpoint() {
+    clearTimeout(checkpointTimer);
+    if (drag || editing || field) return; // mid-action: the end of it checkpoints
+    pending = false;
+    const st = takeState();
+    if (at >= 0 && sig(st) === sig(history[at])) return;
+    history = history.slice(0, at + 1);
+    history.push(st);
+    if (history.length > 100) history.shift();
+    at = history.length - 1;
+  }
+  const scheduleCheckpoint = () => {
+    if (restoring) return;
+    pending = true;
+    clearTimeout(checkpointTimer);
+    checkpointTimer = setTimeout(checkpoint, 250); // a burst of steps (typing, ↑↑↑) is one undo step
+  };
+  function resetHistory() {
+    clearTimeout(checkpointTimer);
+    pending = false;
+    history = [takeState()];
+    at = 0;
+  }
+  function restoreTo(i) {
+    restoring = true;
+    try {
+      applyState(history[i]);
+    } finally {
+      restoring = false;
+    }
+    clearTimeout(checkpointTimer);
+    pending = false;
+  }
+  function undo() {
+    if (pending) checkpoint(); // keep the last action, even if its pause has not passed yet
+    if (at <= 0) return false;
+    restoreTo(--at);
+    return true;
+  }
+  function redo() {
+    if (pending) checkpoint(); // a new action since the undo: there is nothing to redo any more
+    if (at >= history.length - 1) return false;
+    restoreTo(++at);
+    return true;
+  }
+
   /* ================= shared: markers, revert, prompt, copy ================= */
 
   const mark = (el) => el.toggleAttribute("data-ptk-edited", textEdits.has(el) || radiusEdits.has(el) || spaceEdits.has(el) || styleEdits.has(el) || moveEdits.has(el) || removeEdits.has(el));
@@ -2593,6 +2740,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     status = "idle";
     render();
     paint();
+    resetHistory();
   }
 
   function clearEdits() {
@@ -2841,6 +2989,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
        the exception: their floating copies go, so Claude's real layout change is what you see next. */
     for (const [el, e] of moveEdits) unmove(el, e);
     clearEdits();
+    resetHistory(); // what was copied is the new starting point
     status = "done";
     message = `Copied ${n} edit${n === 1 ? "" : "s"}${shotFailed ? " without a screenshot (capture unavailable here)" : ""}. Paste into Claude`;
     render();
@@ -2875,6 +3024,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
       if (tool === "move" && target) (moveAbsolute ? startMove : startFlowDrag)(e, target);
     }
   }, true);
+  window.addEventListener("pointerup", () => setTimeout(() => pending && scheduleCheckpoint(), 0), true); // after the drop below settles
   window.addEventListener("pointerup", () => {
     if (tool === "comment") return commentRelease();
     if (drag?.kind === "flow") return dropFlow(false);
@@ -2942,6 +3092,17 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
       return setMenu(null);
     }
     const mod = e.metaKey || e.ctrlKey;
+    /* ⌘Z / ⌘⇧Z (or ⌘Y): the toolkit's own history. Typing keeps the browser's undo; with nothing to undo here,
+       the keys go on to the app. */
+    if (mod && /^[zy]$/i.test(e.key)) {
+      const t = e.composedPath()[0];
+      const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      if (!typing && (e.key.toLowerCase() === "y" || e.shiftKey ? redo() : undo())) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    }
     if (mod && e.key === "Enter" && (count() || editing)) {
       e.preventDefault();
       e.stopPropagation();
@@ -3015,7 +3176,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     }
     if (e.altKey) return;
     const key = e.key.toLowerCase();
-    const shortcuts = { t: "text", r: "radius", s: "spacing", v: "move", c: "comment" };
+    const shortcuts = { t: "text", s: "spacing", v: "move", c: "comment" };
     if (shortcuts[key] && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
@@ -3041,6 +3202,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
 
   const mount = () => {
     document.body.appendChild(host);
+    resetHistory();
     render();
   };
   if (document.body) mount();
