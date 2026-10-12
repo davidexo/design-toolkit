@@ -42,15 +42,12 @@
       p { margin: 0; }
       :focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
 
-      /* ---------- header: wordmark, centred nav pill, one action ---------- */
+      /* ---------- header: wordmark and one action ---------- */
       header {
-        position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+        position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center;
         padding: var(--gutter); background: linear-gradient(var(--bg) 40%, transparent);
       }
       .wordmark { font-size: 18px; font-weight: 520; letter-spacing: -0.01em; }
-      nav { display: flex; gap: 14px; height: 24px; align-items: center; padding: 0 12px; border-radius: 1000px; background: var(--s-10); }
-      nav a { color: var(--ink-9); transition: color 0.2s var(--ease); }
-      nav a:hover { color: var(--ink); }
 
       /* ---------- pills ---------- */
       .pill {
@@ -64,8 +61,11 @@
       .pill.solid { background: #fff; color: #141414; }
       .pill.solid:hover { background: rgba(255, 255, 255, 0.88); }
       .pill.sm { height: 24px; }
-      .pill.head-end { justify-self: end; } /* after .pill, whose all: unset would reset it */
-      .pill .plus { color: var(--ink-5); }
+      .pill.swap { display: inline-grid; }
+      .pill.swap > span {
+        grid-area: 1 / 1; text-align: center; transition: opacity 0.2s var(--ease), transform 0.3s var(--ease), filter 0.2s var(--ease);
+      }
+      .pill.swap > span[aria-hidden] { opacity: 0; transform: scale(0.92); filter: blur(3px); pointer-events: none; }
 
       /* ---------- hero ---------- */
       /* One column, flush left: everything reads top to bottom at one measure. */
@@ -77,19 +77,16 @@
       /* ---------- feature grid ---------- */
       .features { margin-top: 96px; }
       .features h2 { margin: 0 0 20px; font-size: 24px; font-weight: 400; line-height: 1.2; letter-spacing: -0.01em; }
-      .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-      .feature { display: grid; gap: 6px; align-content: start; padding: 20px; border-radius: 20px; background: var(--s-5); }
-      .feature .icon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 10px; border-radius: 10px; background: var(--s-10); color: var(--ink-9); }
+      .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
+      .feature { display: grid; gap: 0; align-content: start; padding: 20px; border-radius: 0; background: var(--s-5); }
+      .feature .icon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 10px; border-radius: 0; background: var(--s-10); color: var(--ink-9); }
       .feature .icon svg { width: 18px; height: 18px; }
       .feature .name { display: flex; align-items: center; gap: 8px; color: var(--ink-9); }
-      .feature .name kbd { font: inherit; font-size: 12px; padding: 1px 5px; border-radius: 5px; background: var(--s-10); color: var(--ink-5); }
       .feature p { color: var(--ink-5); text-wrap: pretty; }
 
 
       @media (max-width: 720px) {
-        header { grid-template-columns: 1fr auto; }
-        nav { display: none; }
-        main { padding-top: 24px; }
+          main { padding-top: 24px; }
         h1 { font-size: 32px; }
         .features { margin-top: 56px; }
         }
@@ -99,11 +96,7 @@
   <body>
     <header>
       <a class="wordmark" href="./">Design toolkit</a>
-      <nav aria-label="Sections">
-        <a href="#tools">Tools</a>
-        <a href="test.html">Test drive</a>
-      </nav>
-      <a class="pill sm head-end" href="https://github.com/davidexo/design-toolkit">GitHub</a>
+      <a class="pill sm" href="https://github.com/davidexo/design-toolkit">GitHub</a>
     </header>
 
     <main>
@@ -111,18 +104,19 @@
 
       <p class="lede">A tiny toolbar for your localhost. Edit text, radius, spacing and layout where you see them, then copy one prompt for your coding agent.</p>
       <div class="actions">
-        <button class="pill solid" type="button" data-copy-setup>Copy setup prompt</button>
-        <a class="pill" href="test.html">Test <span class="plus" aria-hidden="true">+</span></a>
+        <button class="pill solid swap" type="button" data-copy-setup data-state="idle"><span data-for="idle">Copy prompt</span><span data-for="done" aria-hidden="true">Copied</span><span data-for="error" aria-hidden="true">Copy failed</span></button>
+        <a class="pill" href="test.html">Test</a>
       </div>
 
       <section class="features" aria-labelledby="tools">
-        <h2 id="tools">Tools</h2>
+        <h2 id="tools">Features</h2>
         <ul class="grid">
-          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 3.5h14A2.5 2.5 0 0 1 21.5 6v1.5a1.5 1.5 0 1 1-3 0v-1h-5v12h1.3a1.5 1.5 0 1 1 0 3H9.2a1.5 1.5 0 1 1 0-3h1.3v-12h-5v1a1.5 1.5 0 1 1-3 0V6A2.5 2.5 0 0 1 5 3.5"/></svg></span><span class="name">Text <kbd>T</kbd></span><p>Click any copy and type. Deleting counts too.</p></li>
-          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4 21a1.5 1.5 0 0 1-1.5-1.5V12A9.5 9.5 0 0 1 12 2.5h7.5a1.5 1.5 0 0 1 0 3H12A6.5 6.5 0 0 0 5.5 12v7.5A1.5 1.5 0 0 1 4 21"/></svg></span><span class="name">Radius <kbd>R</kbd></span><p>Drag the corner handle, or type a value.</p></li>
-          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M6 2.5h12A3.5 3.5 0 0 1 21.5 6v12a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 18V6A3.5 3.5 0 0 1 6 2.5m0 3a.5.5 0 0 0-.5.5v12c0 .28.22.5.5.5h12a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5zm3.5 4h5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-4c0-.28.22-.5.5-.5"/></svg></span><span class="name">Spacing <kbd>S</kbd></span><p>Drag padding, margin and gap, with Figma's keys.</p></li>
-          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.2 3.2a1.4 1.4 0 0 1 1.5-.3l15.2 6.2a1.4 1.4 0 0 1-.2 2.6l-6 1.6a1.6 1.6 0 0 0-1.2 1.1l-1.6 6a1.4 1.4 0 0 1-2.6.2L3.1 5.4a1.4 1.4 0 0 1 .3-1.5z"/></svg></span><span class="name">Move <kbd>V</kbd></span><p>Reorder, re-parent, or place it freely.</p></li>
-          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M12 2.5c5.25 0 9.5 3.64 9.5 8.25S17.25 19 12 19c-.93 0-1.83-.11-2.68-.33l-4.1 2.36a1.2 1.2 0 0 1-1.77-1.27l.6-3.18C2.95 15.08 2.5 12.96 2.5 10.75 2.5 6.14 6.75 2.5 12 2.5"/></svg></span><span class="name">Comment <kbd>C</kbd></span><p>Leave a note on any element or selected text.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 3.5h14A2.5 2.5 0 0 1 21.5 6v1.5a1.5 1.5 0 1 1-3 0v-1h-5v12h1.3a1.5 1.5 0 1 1 0 3H9.2a1.5 1.5 0 1 1 0-3h1.3v-12h-5v1a1.5 1.5 0 1 1-3 0V6A2.5 2.5 0 0 1 5 3.5"/></svg></span><span class="name">Text</span><p>Click any copy and type. Deleting counts too.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4 21a1.5 1.5 0 0 1-1.5-1.5V12A9.5 9.5 0 0 1 12 2.5h7.5a1.5 1.5 0 0 1 0 3H12A6.5 6.5 0 0 0 5.5 12v7.5A1.5 1.5 0 0 1 4 21"/></svg></span><span class="name">Radius</span><p>Drag the corner handle, or type a value.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M6 2.5h12A3.5 3.5 0 0 1 21.5 6v12a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 18V6A3.5 3.5 0 0 1 6 2.5m0 3a.5.5 0 0 0-.5.5v12c0 .28.22.5.5.5h12a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5zm3.5 4h5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-4c0-.28.22-.5.5-.5"/></svg></span><span class="name">Spacing</span><p>Drag padding, margin and gap, with Figma's keys.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.2 3.2a1.4 1.4 0 0 1 1.5-.3l15.2 6.2a1.4 1.4 0 0 1-.2 2.6l-6 1.6a1.6 1.6 0 0 0-1.2 1.1l-1.6 6a1.4 1.4 0 0 1-2.6.2L3.1 5.4a1.4 1.4 0 0 1 .3-1.5z"/></svg></span><span class="name">Move</span><p>Reorder, re-parent, or place it freely.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M12 2.5c5.25 0 9.5 3.64 9.5 8.25S17.25 19 12 19c-.93 0-1.83-.11-2.68-.33l-4.1 2.36a1.2 1.2 0 0 1-1.77-1.27l.6-3.18C2.95 15.08 2.5 12.96 2.5 10.75 2.5 6.14 6.75 2.5 12 2.5"/></svg></span><span class="name">Comment</span><p>Leave a note on any element or selected text.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M9.5 2.5h5A2.5 2.5 0 0 1 17 5v.5h3a1.5 1.5 0 0 1 0 3h-.6l-.85 10.2A3.5 3.5 0 0 1 15.06 22H8.94a3.5 3.5 0 0 1-3.49-3.3L4.6 8.5H4a1.5 1.5 0 1 1 0-3h3V5a2.5 2.5 0 0 1 2.5-2.5M10 5.5h4V5.5zM7.6 8.5l.84 10a.5.5 0 0 0 .5.5h6.12a.5.5 0 0 0 .5-.5l.84-10zM10 5.5h4V5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5z"/></svg></span><span class="name">Delete</span><p>Select an element with Move and press delete.</p></li>
         </ul>
       </section>
 
@@ -133,15 +127,22 @@
 1. Install it with the package manager this project already uses (check the lockfile).
 2. In a React app (Next.js, Vite, Remix...), render <DesignToolkit /> from "design-toolkit/react" once in the root layout. Otherwise, import "design-toolkit" in development only.
 3. Change nothing else. Then start or reload the dev server and confirm the toolbar shows at the bottom of the page.`;
+      /* All labels share one grid cell, so the button keeps the width of the longest and only the label changes. */
       const setup = document.querySelector("[data-copy-setup]");
+      let reset;
+      const setState = (state) => {
+        setup.dataset.state = state;
+        setup.querySelectorAll("[data-for]").forEach((l) => l.toggleAttribute("aria-hidden", l.dataset.for !== state));
+      };
       setup.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(agent);
-          setup.textContent = "Copied, paste it into your agent";
+          setState("done");
         } catch {
-          setup.textContent = "Copy failed, try again";
+          setState("error");
         }
-        setTimeout(() => (setup.textContent = "Copy setup prompt"), 2200);
+        clearTimeout(reset);
+        reset = setTimeout(() => setState("idle"), 2200);
       });
     </script>
     <script src="toolkit.js" async></script>

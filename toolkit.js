@@ -76,7 +76,8 @@
   const comments = []; // { n, el, text, quote, tag, path, components }
   let composing = null; // { el, quote, comment? } while the note box is open
 
-  const count = () => textEdits.size + radiusEdits.size + spaceEdits.size + moveEdits.size + comments.length;
+  const removeEdits = new Map(); // element -> { display, twins, tag, path, components }: deleted with the Move tool
+  const count = () => textEdits.size + radiusEdits.size + spaceEdits.size + moveEdits.size + removeEdits.size + comments.length;
   const boxTool = () => tool === "radius" || tool === "spacing" || tool === "move" || tool === "comment";
 
   /* ---------- page styles (attributes only, so React keeps owning the DOM) ---------- */
@@ -1427,6 +1428,30 @@
     return null;
   };
 
+  /* Delete with the Move tool: the element disappears and the page reflows as if it were gone. */
+  function removeElement(el) {
+    if (!el || el === document.body || removeEdits.has(el)) return;
+    const moved = moveEdits.get(el);
+    if (moved) {
+      unmove(el, moved);
+      moveEdits.delete(el);
+    }
+    /* Repeats: elements in the same spot of the same kind of parent (".member-row > span.role"), so a
+       classless <kbd> in every tile counts too. */
+    const d = describe(el);
+    let twins = 1;
+    try {
+      twins = Math.max(1, document.querySelectorAll(d.path.split(" > ").slice(-2).join(" > ")).length);
+    } catch {}
+    removeEdits.set(el, { display: el.style.display, twins, label: short(el), ...d });
+    el.style.display = "none";
+    select(null);
+    hovered = null;
+    mark(el);
+    render();
+    paint();
+  }
+
   function unmove(el, edit) {
     edit.clone?.remove();
     edit.inflow?.remove();
@@ -2099,6 +2124,7 @@
     for (const [el, e] of textEdits) restore(el, e.snapshot);
     for (const [el, e] of radiusEdits) el.style.borderRadius = e.inline;
     for (const [el, e] of moveEdits) unmove(el, e);
+    for (const [el, e] of removeEdits) el.style.display = e.display;
     if (composing) closeNote();
     for (const [el, e] of spaceEdits) {
       for (const [prop, pe] of e.props) {
@@ -2113,23 +2139,22 @@
   }
 
   function clearEdits() {
-    const els = [...textEdits.keys(), ...radiusEdits.keys(), ...spaceEdits.keys(), ...moveEdits.keys()];
+    const els = [...textEdits.keys(), ...radiusEdits.keys(), ...spaceEdits.keys(), ...moveEdits.keys(), ...removeEdits.keys()];
     textEdits.clear();
     radiusEdits.clear();
     spaceEdits.clear();
     moveEdits.clear();
+    removeEdits.clear();
     comments.length = 0;
     paintPins();
     els.forEach(mark);
   }
 
   const earlier = (e) => (e.shown !== e.before ? ` (an earlier edit may already have made it ${e.shown})` : "");
-  const tokenRule = (scale) =>
-    useTokens
-      ? `Use the project's existing design tokens for these values (CSS variables, the ${scale} scale, Tailwind config, utilities). If no token has exactly a value, use the nearest existing one and tell me what you rounded to. Do not hardcode raw values and do not add new tokens.${NO_TOKENS}`
-      : `Use these exact values. If an existing token has exactly a value, use it; otherwise write the raw px value, even though no token exists for it yet.`;
-  const NO_TOKENS = " If the project has no tokens for this kind of value at all, write the raw value as given.";
-  const COMPONENT_RULE = "I am tuning the component, not one instance: change the shared rule (the \"set by\" line names it when the page could tell, and how many elements share it), so every instance changes together. Only scope it to this one element if it is clearly a one-off, and say which you did.";
+  /* Instruction notes: one short line each, listed once at the end, only for the kinds of edits present. */
+  const tokenNote = () =>
+    useTokens ? "Use existing design tokens (nearest if no exact match, raw values if the project has none)." : "Use these exact values.";
+  const SHARED_NOTE = 'Change the shared rule ("set by"), so every instance updates.';
 
   /* ---------- which CSS rule sets a value, and how far it reaches ---------- */
 
@@ -2214,18 +2239,20 @@
     let i = 0;
     const sections = [];
     const how = [];
+    /* Text reads best as plain arrows: "Old" → "New". The quoted string is what the agent searches for. */
+    const textLines = [];
+    for (const e of textEdits.values()) {
+      const emptied = !e.after;
+      for (const p of e.parts?.length ? e.parts : [e]) {
+        const earlierText = p.shown !== p.before ? ` (the page may already show ${JSON.stringify(p.shown)})` : "";
+        const to = p.after ? JSON.stringify(p.after) : emptied ? `delete (and the <${e.tag}> that held it)` : "delete";
+        textLines.push(`${JSON.stringify(p.before)} → ${to}${earlierText}`);
+      }
+    }
+    const TEXT_RULE = "Replace each string where it is defined, including code that sets it again. Fix spelling and capitalisation only.";
     if (textEdits.size) {
-      const line = (before, shown, after, emptied) =>
-        `   before: ${JSON.stringify(before)}${shown !== before ? ` (an earlier edit may already have made it ${JSON.stringify(shown)})` : ""}\n   after:  ${
-          after ? JSON.stringify(after) : emptied ? "(deleted) remove this text and the element that held only it, and tidy any spacing it leaves behind." : "(deleted) remove this text, keep the rest of the element."
-        }`;
-      const list = [...textEdits.values()].map((e) => {
-        const emptied = !e.after;
-        const body = e.parts?.length ? e.parts.map((p) => line(p.before, p.shown, p.after, emptied)).join("\n\n") : line(e.before, e.shown, e.after, emptied);
-        return `${++i}. <${e.tag}> ${where(e)}\n${body}`;
-      });
-      sections.push(`Text\n\n${list.join("\n\n")}`);
-      how.push(`Text: find where each "before" string comes from (JSX, a content or constants file, JSON, markdown, i18n); search for a distinctive fragment if the whole string does not match. Change only that copy and keep the surrounding markup and code style. If the same string lives in several places, change the one that renders on this page. I typed the new copy quickly in the browser: fix its spelling, and match the capitalisation and punctuation of the copy around it (sentence case buttons stay sentence case), then tell me what you corrected. Do not reword it beyond that.`);
+      sections.push(`Text\n\n${textLines.join("\n")}`);
+      how.push(TEXT_RULE);
     }
     if (radiusEdits.size) {
       const list = [...radiusEdits.entries()].map(([el, e]) => {
@@ -2233,7 +2260,7 @@
         return `${++i}. <${e.tag}> ${where(e)}\n   border-radius: ${e.before}${earlier(e)} → ${e.full ? "fully rounded (pill, 9999px)" : e.after}${by ? `\n${by}` : ""}`;
       });
       sections.push(`Corner radius\n\n${list.join("\n\n")}`);
-      how.push(`Radius: find the rule that rounds each element (CSS module class, Tailwind class, styled component, inline style). ${tokenRule("radius")} ${COMPONENT_RULE}`);
+      how.push(SHARED_NOTE, tokenNote());
     }
     if (spaceEdits.size) {
       const list = [...spaceEdits.entries()].map(([el, e]) => {
@@ -2241,21 +2268,30 @@
         return `${++i}. <${e.tag}> ${where(e)}\n${spaceLines(e)}${by ? `\n${by}` : ""}`;
       });
       sections.push(`Spacing\n\n${list.join("\n\n")}`);
-      how.push(`Spacing: find the rule that produces each space (padding, margin or gap on a CSS module class, Tailwind classes like p-4 or gap-3, a styled component, inline style). Space can also come from the parent, such as space-y utilities or sibling selectors; change the rule that actually creates it. ${tokenRule("spacing")} ${COMPONENT_RULE}`);
+      how.push(SHARED_NOTE, tokenNote());
     }
     const flows = [...moveEdits.entries()].filter(([, e]) => e.mode === "flow" && e.to);
     const absolutes = [...moveEdits.entries()].filter(([, e]) => e.mode === "absolute");
     if (flows.length) {
       const list = flows.map(([, e]) => `${++i}. <${e.tag}> ${where(e)}\n${describeFlow(e)}`);
       sections.push(`Moved in the layout\n\n${list.join("\n\n")}`);
-      how.push(`Layout moves: change the JSX to match. A reorder means changing the order of the children; if they come from a .map() over data, reorder the data instead. A move into another container means moving the element's JSX (with its props and wiring) into that parent at that position. Keep everything in normal flow: no absolute positioning, no negative margins. Tidy spacing the move leaves behind.`);
+      how.push("Move the JSX to match (reorder the data if it comes from a .map()). Keep it in normal flow.");
     }
     if (absolutes.length) {
       const list = absolutes
         .sort(([, a], [, b]) => a.n - b.n)
         .map(([el, e]) => `${++i}. Move ${e.n} (${e.colorName}${shotAttached ? " in the screenshot" : ""}): <${e.tag}> ${where(e)}\n${describeAbsolute(el, e)}`);
-      sections.push(`Positioned absolutely\n\n${list.join("\n\n")}${shotAttached ? "\n\nI attached a screenshot. Each move has its own colour: the dashed box labelled “Move N · from” is where it was, the outlined element labelled “Move N” is where I put it, and an arrow in the same colour joins them." : ""}`);
-      how.push(`Absolute moves: I chose free positioning for these. Make each position: absolute inside the named container (give the container position: relative if it has none) at those offsets, taking it out of the flow. If it moved to another container, move its JSX there too. ${tokenRule("spacing")}`);
+      sections.push(`Positioned absolutely\n\n${list.join("\n\n")}${shotAttached ? "\n\nScreenshot attached: each move's colour joins its dashed “from” box to where I put it." : ""}`);
+      how.push("Absolute moves: position: absolute in the named container (make it relative), at those offsets.", tokenNote());
+    }
+    /* Removals read as one line each; a repeated element says so, so the agent removes it everywhere. */
+    const removeLines = [...removeEdits.values()].map((e) => {
+      const at = e.path.split(" > ").slice(-2).join(" > ");
+      const kind = e.label.match(/^<[^ >]+/)[0].slice(1);
+      return e.twins > 1 ? `Remove ${e.label} (${at}), from every place it repeats: it is one of ${e.twins} ${kind} on the page.` : `Remove ${e.label} (${at}).`;
+    });
+    if (removeEdits.size) {
+      sections.push(`Removed\n\n${removeLines.join("\n")}`);
     }
     if (comments.length) {
       const list = comments.map((c, k) => {
@@ -2265,16 +2301,16 @@
         return `${n}. <${c.tag}> ${where(c)}${n !== k + 1 ? ` (pin ${k + 1})` : ""}${label}${quote}\n   comment: ${c.text.replace(/\n/g, "\n            ")}`;
       });
       sections.push(`Comments\n\n${list.join("\n\n")}`);
-      how.push(`Comments: these are my notes in my own words, not exact values. Do what each one asks in the source with the smallest change that does it. If a note is about something every instance shares (all menu items, all cards), change the shared component; otherwise change only this one. If a note is unclear or would need a bigger redesign, ask me before guessing.`);
+      how.push("Comments are my notes, not exact values: make the smallest change that does it, ask if unclear.");
     }
-    const intro = comments.length === count()
-      ? `I left comments on ${location.href} while reviewing it in the browser. Act on them in the source code.`
-      : `I tweaked the design directly in the browser on ${location.href}. Apply these changes to the source code.`;
-    return `${intro}
-
-${sections.join("\n\n")}
-
-${how.join("\n\n")}`;
+    /* Only copy changed: the arrows and one line of instructions are the whole prompt. */
+    if (textEdits.size + removeEdits.size === count()) {
+      const parts = [textLines.join("\n"), removeLines.join("\n")].filter(Boolean).join("\n\n");
+      return `${removeEdits.size ? "On" : "Change this copy on"} ${location.href}:\n\n${parts}${textEdits.size ? `\n\n${TEXT_RULE}` : ""}`;
+    }
+    const intro = comments.length === count() ? `Comments on ${location.href}:` : `Apply these design changes from ${location.href}:`;
+    const notes = [...new Set(how)].map((n) => `- ${n}`).join("\n");
+    return `${intro}\n\n${sections.join("\n\n")}\n\n${notes}`;
   }
 
   let shotAttached = false;
@@ -2441,6 +2477,10 @@ ${how.join("\n\n")}`;
         const next = e.shiftKey ? selected.previousElementSibling : selected.nextElementSibling;
         if (next) select(next);
         return;
+      }
+      if (tool === "move" && (e.key === "Delete" || e.key === "Backspace")) {
+        take();
+        return removeElement(selected);
       }
       if (tool === "move" && /^Arrow/.test(e.key)) {
         take();

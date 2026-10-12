@@ -76,7 +76,7 @@ nearest one. Off: exact values, even if no token exists yet. Remembered per brow
 container under your pointer, like Figma's auto layout. On drop the page reflows as if the change were
 made, and the prompt is plain: "reorder: position 4 → 1 of 7 in div.chips" or "move out of div.chips
 (position 15 of 16) into section.hero at position 3 of 4 (after the h1, before the p)". Arrow keys step
-it one slot. Claude is told to change the JSX order or parent, never to position it absolutely.
+it one slot. Claude is told to change the JSX order or parent, never to position it absolutely. Press `Delete` (or `⌫`) to remove the selected element; the prompt asks for it to be deleted, from the shared template if it repeats.
 
 Turn on **Absolute** to drag anywhere instead. The element floats above everything, a dashed
 placeholder keeps its old spot, and the prompt asks for position: absolute inside the container it
