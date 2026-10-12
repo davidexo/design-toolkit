@@ -46,6 +46,7 @@ to your dev page.
 | `S` | **Spacing**: click any element, drag its padding (green), margin (orange) or gap (purple) bands, click a number to type |
 | `V` | **Select**: click anything to select it (the toolkit opens on Select), drag its corner handle to change the radius, drag it into any container to reorder or re-parent; arrows reorder. A **Layers** tree shows top left while something is selected |
 | `M` | **Move**: place anything freely; the prompt asks for position: absolute, with an annotated screenshot of the page |
+| `R` | **Add**: drag on the page to draw a striped placeholder box inside the container you start in; Select takes over with it selected and its **Desc** label ready: write what the box should contain (click the label later to change it). The prompt asks for an element of that size and place, with that description. Add leads the toolbar |
 | `C` | **Comment**: click any element, or select some text, and type a note; `↵` adds it, `⇧↵` for a new line. Numbered pins mark each comment, click one to edit or delete it |
 
 Everything snaps to a 2px grid, typed values included (13 becomes 14).
@@ -61,7 +62,7 @@ Everything snaps to a 2px grid, typed values included (13 becomes 14).
 | `Esc` | deselect, then leave the tool |
 
 **Panel.** While Move, Radius or Spacing is on, a panel docks on the right (the page moves over to make room) and shows the selected element and its
-Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner button), Margin, Fill and Border
+Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner button), Margin, Typography (font, weight, size, line height, letter spacing, alignment; shown for text), Fill and Border
 (width and colour; click a swatch to unfold PERMANENT ui's colour picker with presets, a saturation/brightness field, a hue strip, hex and an eyedropper, or type hex, rgba or none in the field).
 Type a value, step with `↑` `↓`, `Tab` between fields, or drag a field's label to scrub, like Figma's
 design sidebar.
@@ -80,8 +81,10 @@ selection's siblings), clicking the selection again goes one level in, and `⌘`
 element. `⇧`-click adds or removes; `↵` selects all children, `⇧↵` all parents. Panel edits, the corner handle and
 Delete apply to everything selected. `⇥` / `⇧⇥` step to the next / previous sibling.
 
-**Layers** (top left, while Select has a selection) works like Figma's: click selects, `⌘`-click adds or removes, `⇧`-click selects a range, `⌥`-click an arrow opens or closes the whole branch, `⌥L` collapses everything but the path to the selection. Icons show column, row and grid layouts. The selection stays when you switch tools, and the side panel shows while
+**Layers** (top left, while Select has a selection) works like Figma's: click selects, `⌘`-click adds or removes, `⇧`-click selects a range, `⌥`-click an arrow opens or closes the whole branch, `⌥L` collapses everything but the path to the selection. Text layers are named by their text; double-click one to rename it and the page text changes with it (it lands in the prompt as a text edit). Drag rows to reorder or re-parent: a line shows before or after a row, the middle of a container's row drops inside it. It is a real layout move, so it lands in the prompt like a Select drag. Icons show column, row and grid layouts. The selection stays when you switch tools, and the side panel shows while
 something is selected.
+
+**Canvas** (`test.html?canvas`, the Canvas button on the site): every test screen as a frame on a canvas, like a Figma file. Scroll pans, `⌘`/Ctrl + scroll (or pinch) zooms at the pointer, space or middle-drag pans, `⇧1` fits. Drag a frame by its name to move it; drag its right edge, bottom edge or corner to resize (double-click a handle to reset). Positions and sizes are remembered in your browser.
 
 **Options.** Tools with a corner wedge (Move, Copy prompt) open their options from the wedge, a right-click, or a long press.
 
@@ -104,7 +107,7 @@ browser pane; there you get the prompt only.
 
 After you copy, moved elements go back, so the next thing you see is Claude's real change.
 
-**Deleting text** is an edit too: the prompt asks Claude to remove it (and the element if it only held that text).
+**Deleting text** is an edit too: the prompt asks Claude to remove it, and when you delete all of an element's text the element leaves the page as well.
 
 **Copy prompt** (`⌘↵`) puts every edit in one prompt: before and after, the element, its DOM path and
 the nearest React component names. Claude is told you are tuning the component, so it changes the

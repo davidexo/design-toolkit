@@ -13,13 +13,10 @@
       } catch {}
       addEventListener("design-toolkit:theme", (e) => (document.documentElement.dataset.theme = e.detail.theme));
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" />
     <style>
-      @font-face {
-        font-family: "Camera Plain";
-        src: url("https://permanent.is/fonts/ABCCameraPlainVariable.woff2") format("woff2");
-        font-weight: 100 900;
-        font-display: swap;
-      }
       /* Dark by default, like the landing page. The toolkit's Appearance setting (Dark, Light, Auto) sets data-theme. */
       :root {
         color-scheme: dark;
@@ -67,7 +64,7 @@
         margin: 0;
         background: var(--bg);
         color: var(--ink);
-        font: 400 15px/1.3 "Camera Plain", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font: 400 15px/1.3 "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif; /* the test page's default typeface */
         letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased;
       }
@@ -223,6 +220,41 @@
         .products { grid-template-columns: 1fr; }
       }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+      /* ---------- canvas mode (test.html?canvas): every screen as a frame on a pannable, zoomable canvas ---------- */
+      body.canvas {
+        overflow: hidden; height: 100vh; overscroll-behavior: none;
+        background-image: radial-gradient(color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1.2px);
+        background-size: 20px 20px;
+      }
+      body.canvas .layout { position: fixed; inset: 0; display: block; min-height: 0; padding: 0; }
+      body.canvas .stage {
+        position: absolute; left: 0; top: 0; width: max-content; min-height: 0; padding: 0; border-radius: 0; background: none;
+        display: grid; grid-template-columns: repeat(4, 600px); gap: 96px 72px; align-items: start; transform-origin: 0 0;
+      }
+      body.canvas .frame { position: relative; padding: 40px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); display: grid; place-items: center; min-height: 360px; }
+      body.canvas .frame > [data-step] { width: 100%; }
+      /* The frame's name is its handle, like Figma: drag it to move the frame. */
+      body.canvas .frame-name {
+        position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 4px; margin-left: -4px; border-radius: 4px;
+        color: var(--ink-3); font-size: 13px; white-space: nowrap; cursor: grab; user-select: none; touch-action: none;
+        transition: color .15s, background-color .15s;
+      }
+      body.canvas .frame-name:hover { color: var(--ink); background: var(--surface); }
+      /* Resize handles: the right edge, the bottom edge and the corner. */
+      body.canvas .rz { position: absolute; z-index: 2; touch-action: none; }
+      body.canvas .rz-r { top: 0; right: -4px; width: 8px; height: 100%; cursor: ew-resize; }
+      body.canvas .rz-b { left: 0; bottom: -4px; width: 100%; height: 8px; cursor: ns-resize; }
+      body.canvas .rz-c { right: -6px; bottom: -6px; width: 12px; height: 12px; cursor: nwse-resize; }
+      body.canvas .frame:hover .rz-c::after, body.canvas .frame.lifted .rz-c::after {
+        content: ""; position: absolute; inset: 3px; border-radius: 2px; background: var(--bg); box-shadow: 0 0 0 1.5px var(--accent);
+      }
+      body.canvas .frame.sizing { box-shadow: 0 0 0 1.5px var(--accent); }
+      body.canvas .frame.lifted { z-index: 1; box-shadow: 0 0 0 1.5px var(--accent), 0 20px 60px rgba(0, 0, 0, .35); }
+      body.canvas .frame.lifted .frame-name { color: var(--accent); cursor: grabbing; }
+      body.canvas .nav { display: none; }
+      body.canvas.panning, body.canvas.panning * { cursor: grabbing !important; }
+      body.canvas.space, body.canvas.space * { cursor: grab !important; }
     </style>
   </head>
   <body>
@@ -608,8 +640,203 @@
         dropdown.addEventListener("click", (e) => e.target.closest(".menu-item") && set(false, "item chosen"));
       })();
 
-      state.step = fromHash() ?? state.step;
-      render();
+      /* Canvas mode: all screens at once, as frames on a canvas you pan and zoom like Figma.
+         Scroll pans, ⌘/Ctrl + scroll (or pinch) zooms at the pointer, space or middle-drag pans, ⇧1 fits. */
+      if (new URLSearchParams(location.search).has("canvas")) {
+        document.body.classList.add("canvas");
+        document.title = "Canvas · Test";
+        document.querySelector(".top .name").textContent = "Canvas";
+        const stage = $("stage");
+        const zoomLabel = $("step-count");
+        STEPS.forEach((st, i) => {
+          const sec = stage.querySelector(`[data-step="${i + 1}"]`);
+          sec.hidden = false;
+          const frame = document.createElement("div");
+          frame.className = "frame";
+          frame.dataset.frame = String(i + 1);
+          const name = document.createElement("span");
+          name.className = "frame-name";
+          name.setAttribute("data-toolkit-ignore", "");
+          name.textContent = `${i + 1} · ${st.title}`;
+          sec.replaceWith(frame);
+          frame.append(name, sec);
+          for (const side of ["r", "b", "c"]) {
+            const h = document.createElement("span");
+            h.className = `rz rz-${side}`;
+            h.dataset.rz = side;
+            h.setAttribute("data-toolkit-ignore", "");
+            frame.append(h);
+          }
+        });
+        let tx = 0, ty = 0, k = 1;
+        const apply = () => {
+          stage.style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
+          document.body.style.backgroundPosition = `${tx}px ${ty}px`;
+          document.body.style.backgroundSize = `${20 * k}px ${20 * k}px`;
+          zoomLabel.textContent = `${Math.round(k * 100)}%`;
+        };
+        const fit = () => {
+          k = Math.min(1, (innerWidth - 120) / stage.offsetWidth, (innerHeight - 140) / stage.offsetHeight);
+          tx = (innerWidth - stage.offsetWidth * k) / 2;
+          ty = Math.max(88, (innerHeight - stage.offsetHeight * k) / 2);
+          apply();
+        };
+        const zoomAt = (x, y, nk) => {
+          nk = Math.min(4, Math.max(0.1, nk));
+          tx = x - ((x - tx) * nk) / k;
+          ty = y - ((y - ty) * nk) / k;
+          k = nk;
+          apply();
+        };
+        const inToolkit = (e) => e.composedPath().some((n) => n.hasAttribute?.("data-ptk-host") || n.hasAttribute?.("data-toolkit-ignore"));
+        addEventListener("wheel", (e) => {
+          if (inToolkit(e)) return;
+          e.preventDefault();
+          if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, k * Math.exp(-e.deltaY * 0.01));
+          else {
+            tx -= e.deltaX;
+            ty -= e.deltaY;
+            apply();
+          }
+        }, { passive: false });
+        /* Panning comes first (this listener is registered before the toolkit's), so a pan never reaches a tool. */
+        let space = false;
+        let pan = null;
+        const typing = () => document.activeElement?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? "");
+        addEventListener("keydown", (e) => {
+          if (e.key === " " && !typing() && !e.repeat) {
+            e.preventDefault();
+            space = true;
+            document.body.classList.add("space");
+          }
+          if (e.key === "!" || (e.shiftKey && e.code === "Digit1")) {
+            if (!typing()) fit();
+          }
+        }, true);
+        addEventListener("keyup", (e) => {
+          if (e.key === " ") {
+            space = false;
+            document.body.classList.remove("space");
+          }
+        }, true);
+        addEventListener("pointerdown", (e) => {
+          if (!(space || e.button === 1) || inToolkit(e)) return;
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          pan = { x: e.clientX, y: e.clientY, tx, ty };
+          document.body.classList.add("panning");
+        }, true);
+        addEventListener("pointermove", (e) => {
+          if (!pan) return;
+          e.stopImmediatePropagation();
+          tx = pan.tx + e.clientX - pan.x;
+          ty = pan.ty + e.clientY - pan.y;
+          apply();
+        }, true);
+        addEventListener("pointerup", (e) => {
+          if (!pan) return;
+          e.stopImmediatePropagation();
+          pan = null;
+          document.body.classList.remove("panning");
+        }, true);
+        addEventListener("resize", () => apply());
+
+        /* Drag a frame by its name. Offsets are kept per frame in this browser. */
+        const FRAMES_KEY = "design-toolkit:canvas-frames";
+        let offsets = {};
+        try {
+          offsets = JSON.parse(localStorage.getItem(FRAMES_KEY)) || {};
+        } catch {}
+        const SIZES_KEY = "design-toolkit:canvas-sizes";
+        let sizes = {};
+        try {
+          sizes = JSON.parse(localStorage.getItem(SIZES_KEY)) || {};
+        } catch {}
+        const place = (frame) => {
+          const o = offsets[frame.dataset.frame] || [0, 0];
+          frame.style.translate = `${o[0]}px ${o[1]}px`;
+          const z = sizes[frame.dataset.frame];
+          frame.style.width = z?.[0] ? `${z[0]}px` : "";
+          frame.style.height = z?.[1] ? `${z[1]}px` : "";
+        };
+        const save = () => {
+          try {
+            localStorage.setItem(FRAMES_KEY, JSON.stringify(offsets));
+            localStorage.setItem(SIZES_KEY, JSON.stringify(sizes));
+          } catch {}
+        };
+        /* Resize from the right edge, the bottom edge or the corner; double-click a handle to reset the size. */
+        stage.addEventListener("pointerdown", (e) => {
+          const h = e.target.closest(".rz");
+          if (!h || e.button !== 0 || space) return;
+          e.preventDefault();
+          const frame = h.parentElement;
+          const id = frame.dataset.frame;
+          const r = frame.getBoundingClientRect();
+          const start = { x: e.clientX, y: e.clientY, w: r.width / k, h: r.height / k };
+          frame.classList.add("sizing");
+          try {
+            h.setPointerCapture(e.pointerId);
+          } catch {}
+          const move = (ev) => {
+            const side = h.dataset.rz;
+            const prev = sizes[id] || [];
+            const w = side !== "b" ? Math.max(200, Math.round(start.w + (ev.clientX - start.x) / k)) : prev[0];
+            const ht = side !== "r" ? Math.max(120, Math.round(start.h + (ev.clientY - start.y) / k)) : prev[1];
+            sizes[id] = [w, ht];
+            place(frame);
+          };
+          const up = () => {
+            frame.classList.remove("sizing");
+            h.removeEventListener("pointermove", move);
+            h.removeEventListener("pointerup", up);
+            h.removeEventListener("pointercancel", up);
+            save();
+          };
+          h.addEventListener("pointermove", move);
+          h.addEventListener("pointerup", up);
+          h.addEventListener("pointercancel", up);
+        });
+        stage.addEventListener("dblclick", (e) => {
+          const h = e.target.closest(".rz");
+          if (!h) return;
+          delete sizes[h.parentElement.dataset.frame];
+          place(h.parentElement);
+          save();
+        });
+        stage.querySelectorAll(".frame").forEach(place);
+        stage.addEventListener("pointerdown", (e) => {
+          const name = e.target.closest(".frame-name");
+          if (!name || e.button !== 0 || space) return;
+          e.preventDefault();
+          const frame = name.parentElement;
+          const id = frame.dataset.frame;
+          const start = { x: e.clientX, y: e.clientY, o: offsets[id] || [0, 0] };
+          frame.classList.add("lifted");
+          try {
+            name.setPointerCapture(e.pointerId);
+          } catch {}
+          const move = (ev) => {
+            offsets[id] = [Math.round(start.o[0] + (ev.clientX - start.x) / k), Math.round(start.o[1] + (ev.clientY - start.y) / k)];
+            place(frame);
+          };
+          const up = () => {
+            frame.classList.remove("lifted");
+            name.removeEventListener("pointermove", move);
+            name.removeEventListener("pointerup", up);
+            name.removeEventListener("pointercancel", up);
+            save();
+          };
+          name.addEventListener("pointermove", move);
+          name.addEventListener("pointerup", up);
+          name.addEventListener("pointercancel", up);
+        });
+        requestAnimationFrame(fit);
+        document.fonts?.ready.then(fit);
+      } else {
+        state.step = fromHash() ?? state.step;
+        render();
+      }
     </script>
     <script src="toolkit.js" async></script>
   </body>
