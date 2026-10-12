@@ -57,6 +57,7 @@
   /* Values as they first rendered. A copied edit is still on screen, so the next edit of the same
      element must still say what the source holds, not what the page shows now. */
   const originalText = new WeakMap();
+  const originalNodeText = new WeakMap(); // text node -> its value as it first rendered
 
   let hovered = null; // radius + spacing: element under the pointer
   let selected = null; // radius + spacing: element being tuned
@@ -786,6 +787,7 @@
     if (editing === el) return;
     if (editing) commit(editing);
     if (!originalText.has(el)) originalText.set(el, el.innerText.trim());
+    for (const n of textNodes(el)) if (!originalNodeText.has(n)) originalNodeText.set(n, n.nodeValue);
     if (!textEdits.has(el)) {
       textEdits.set(el, { before: originalText.get(el), shown: el.innerText.trim(), ...describe(el), snapshot: snapshot(el) });
     }
@@ -804,9 +806,41 @@
     const edit = textEdits.get(el);
     if (!edit) return;
     edit.after = el.innerText.trim();
+    edit.parts = changedParts(el, edit.snapshot);
     if (edit.after === edit.shown) textEdits.delete(el);
     mark(el);
     render();
+  }
+
+  const textNodes = (el) => {
+    const out = [];
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) out.push(n);
+    return out;
+  };
+  const squash = (t) => (t ?? "").replace(/\s+/g, " ").trim();
+
+  /* What changed, text node by text node, so "before" is a string that exists in the source as written
+     ("Test drive" in a button, not the button's whole visible text "Test drive\n+" with its icon). Null
+     when typing replaced the nodes themselves and they can no longer be matched up; then the whole
+     element's text is used. */
+  function changedParts(el, nodes) {
+    const parts = [];
+    for (const [n, shownValue] of nodes) {
+      if (shownValue === null || !squash(shownValue)) continue;
+      const now = n.isConnected && el.contains(n) ? n.nodeValue : "";
+      if (squash(now) === squash(shownValue)) continue;
+      parts.push({ before: squash(originalNodeText.get(n) ?? shownValue), shown: squash(shownValue), after: squash(now) });
+    }
+    const known = new Set(nodes.map(([n]) => n));
+    const added = textNodes(el).filter((n) => !known.has(n) && squash(n.nodeValue));
+    if (!added.length) return parts.length ? parts : null;
+    /* New text typed into an emptied node lands in a fresh node: pair it with the one change, if that is all there is. */
+    if (parts.length === 1 && !parts[0].after) {
+      parts[0].after = squash(added.map((n) => n.nodeValue).join(" "));
+      return parts;
+    }
+    return null;
   }
 
   /* Remember every node so a revert restores React's own text nodes instead of replacing them. */
@@ -2092,9 +2126,74 @@
   const earlier = (e) => (e.shown !== e.before ? ` (an earlier edit may already have made it ${e.shown})` : "");
   const tokenRule = (scale) =>
     useTokens
-      ? `Use the project's existing design tokens for these values (CSS variables, the ${scale} scale, Tailwind config, utilities). If no token has exactly a value, use the nearest existing one and tell me what you rounded to. Do not hardcode raw values and do not add new tokens.`
+      ? `Use the project's existing design tokens for these values (CSS variables, the ${scale} scale, Tailwind config, utilities). If no token has exactly a value, use the nearest existing one and tell me what you rounded to. Do not hardcode raw values and do not add new tokens.${NO_TOKENS}`
       : `Use these exact values. If an existing token has exactly a value, use it; otherwise write the raw px value, even though no token exists for it yet.`;
-  const COMPONENT_RULE = "I am tuning the component, not one instance: if every instance shares the rule (all chips, all cards), change the shared rule. Only scope it to this one element if it is clearly a one-off, and say which you did.";
+  const NO_TOKENS = " If the project has no tokens for this kind of value at all, write the raw value as given.";
+  const COMPONENT_RULE = "I am tuning the component, not one instance: change the shared rule (the \"set by\" line names it when the page could tell, and how many elements share it), so every instance changes together. Only scope it to this one element if it is clearly a one-off, and say which you did.";
+
+  /* ---------- which CSS rule sets a value, and how far it reaches ---------- */
+
+  const specificity = (sel) => {
+    const ids = (sel.match(/#[\w-]+/g) || []).length;
+    const cls = (sel.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g) || []).length;
+    const tags = (sel.replace(/#[\w-]+|\.[\w-]+|\[[^\]]+\]|::?[\w-]+(\([^)]*\))?/g, " ").match(/[a-z][\w-]*/gi) || []).length;
+    return ids * 100 + cls * 10 + tags;
+  };
+  const readable = (sel) => sel.replace(/([A-Za-z]+)-module__[A-Za-z0-9_-]+__([\w-]+)/g, "$2").replace(/\s+/g, " ").trim();
+
+  /* The stylesheet rule that wins for these properties on this element: highest specificity, then
+     the later one. Cross-origin sheets cannot be read, and CSS-in-JS may have no named rule; then null. */
+  function ruleFor(el, props) {
+    let best = null;
+    let order = 0;
+    const visit = (rules) => {
+      for (const rule of rules) {
+        order++;
+        if (rule.cssRules && !rule.selectorText) {
+          if (!rule.media || matchMedia(rule.media.mediaText).matches) visit(rule.cssRules);
+          continue;
+        }
+        if (!rule.selectorText || !props.some((p) => rule.style.getPropertyValue(p))) continue;
+        for (const part of rule.selectorText.split(",").map((x) => x.trim())) {
+          let hit = false;
+          try {
+            hit = el.matches(part);
+          } catch {}
+          if (!hit) continue;
+          const spec = specificity(part);
+          if (!best || spec > best.spec || (spec === best.spec && order > best.order)) best = { selector: part, spec, order, sheet: rule.parentStyleSheet };
+        }
+      }
+    };
+    for (const sheet of document.styleSheets) {
+      if (sheet.ownerNode === pageStyle) continue; // the toolkit's own cursor and outline rules
+      try {
+        visit(sheet.cssRules);
+      } catch {}
+    }
+    if (!best) return null;
+    let shared = [];
+    try {
+      shared = [...document.querySelectorAll(best.selector)];
+    } catch {}
+    const href = best.sheet?.href;
+    const source = href ? href.split("/").pop().split("?")[0] : best.sheet?.ownerNode?.tagName === "STYLE" ? "a <style> on the page" : "";
+    return { selector: readable(best.selector), shared, source };
+  }
+
+  /* "set by: .button in a <style> on the page, shared by 7 elements here ("Cancel", "Save changes", …)" */
+  function setBy(el, props) {
+    const r = ruleFor(el, props);
+    if (!r) return "";
+    const n = r.shared.length;
+    const names = r.shared
+      .filter((x) => x !== el && x.getClientRects().length)
+      .map((x) => squash(x.innerText).slice(0, 24))
+      .filter(Boolean)
+      .slice(0, 3);
+    const reach = n > 1 ? `, shared by ${n} elements here${names.length ? ` (also ${names.map((t) => JSON.stringify(t)).join(", ")}${n - 1 > names.length ? ", …" : ""})` : ""}` : ", used only by this element";
+    return `   set by: ${r.selector}${r.source ? ` in ${r.source}` : ""}${reach}`;
+  }
 
   function spaceLines(edit) {
     const lines = [];
@@ -2116,19 +2215,31 @@
     const sections = [];
     const how = [];
     if (textEdits.size) {
-      const list = [...textEdits.values()].map((e) =>
-        `${++i}. <${e.tag}> ${where(e)}\n   before: ${JSON.stringify(e.before)}${e.shown !== e.before ? ` (an earlier edit may already have made it ${JSON.stringify(e.shown)})` : ""}\n   after:  ${e.after ? JSON.stringify(e.after) : "(deleted) remove this text. If the element only held this text, remove the element too, and tidy any spacing it leaves behind."}`,
-      );
+      const line = (before, shown, after, emptied) =>
+        `   before: ${JSON.stringify(before)}${shown !== before ? ` (an earlier edit may already have made it ${JSON.stringify(shown)})` : ""}\n   after:  ${
+          after ? JSON.stringify(after) : emptied ? "(deleted) remove this text and the element that held only it, and tidy any spacing it leaves behind." : "(deleted) remove this text, keep the rest of the element."
+        }`;
+      const list = [...textEdits.values()].map((e) => {
+        const emptied = !e.after;
+        const body = e.parts?.length ? e.parts.map((p) => line(p.before, p.shown, p.after, emptied)).join("\n\n") : line(e.before, e.shown, e.after, emptied);
+        return `${++i}. <${e.tag}> ${where(e)}\n${body}`;
+      });
       sections.push(`Text\n\n${list.join("\n\n")}`);
-      how.push(`Text: find where each "before" string comes from (JSX, a content or constants file, JSON, markdown, i18n); search for a distinctive fragment if the whole string does not match. Change only that copy and keep the surrounding markup and code style. If the same string lives in several places, change the one that renders on this page.`);
+      how.push(`Text: find where each "before" string comes from (JSX, a content or constants file, JSON, markdown, i18n); search for a distinctive fragment if the whole string does not match. Change only that copy and keep the surrounding markup and code style. If the same string lives in several places, change the one that renders on this page. I typed the new copy quickly in the browser: fix its spelling, and match the capitalisation and punctuation of the copy around it (sentence case buttons stay sentence case), then tell me what you corrected. Do not reword it beyond that.`);
     }
     if (radiusEdits.size) {
-      const list = [...radiusEdits.values()].map((e) => `${++i}. <${e.tag}> ${where(e)}\n   border-radius: ${e.before}${earlier(e)} → ${e.full ? "fully rounded (pill, 9999px)" : e.after}`);
+      const list = [...radiusEdits.entries()].map(([el, e]) => {
+        const by = setBy(el, ["border-radius", "border-top-left-radius"]);
+        return `${++i}. <${e.tag}> ${where(e)}\n   border-radius: ${e.before}${earlier(e)} → ${e.full ? "fully rounded (pill, 9999px)" : e.after}${by ? `\n${by}` : ""}`;
+      });
       sections.push(`Corner radius\n\n${list.join("\n\n")}`);
       how.push(`Radius: find the rule that rounds each element (CSS module class, Tailwind class, styled component, inline style). ${tokenRule("radius")} ${COMPONENT_RULE}`);
     }
     if (spaceEdits.size) {
-      const list = [...spaceEdits.values()].map((e) => `${++i}. <${e.tag}> ${where(e)}\n${spaceLines(e)}`);
+      const list = [...spaceEdits.entries()].map(([el, e]) => {
+        const by = setBy(el, [...e.props.keys()]);
+        return `${++i}. <${e.tag}> ${where(e)}\n${spaceLines(e)}${by ? `\n${by}` : ""}`;
+      });
       sections.push(`Spacing\n\n${list.join("\n\n")}`);
       how.push(`Spacing: find the rule that produces each space (padding, margin or gap on a CSS module class, Tailwind classes like p-4 or gap-3, a styled component, inline style). Space can also come from the parent, such as space-y utilities or sibling selectors; change the rule that actually creates it. ${tokenRule("spacing")} ${COMPONENT_RULE}`);
     }
@@ -2302,6 +2413,10 @@ ${how.join("\n\n")}`;
       if (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey)) {
         e.preventDefault();
         commit(editing);
+      } else if (e.key === " " && !e.isComposing) {
+        /* Space presses buttons (and scrolls in some editors) instead of typing, so type it ourselves. */
+        e.preventDefault();
+        document.execCommand("insertText", false, " ");
       }
       return;
     }

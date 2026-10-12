@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Design toolkit</title>
     <meta name="description" content="A minimal toolbar for dialing in design while vibe coding. Tweak text, radius, spacing and layout on localhost, then copy one prompt for your coding agent." />
+    <meta name="color-scheme" content="dark" />
     <style>
+      /* permanent.is: Camera Plain, #141414 ground, white ink at .9 / .8 / .5, 5% and 10% white surfaces,
+         24 to 32px pills, 20px cards, flush left on a 12px gutter. */
       @font-face {
         font-family: "Camera Plain";
         src: url("https://permanent.is/fonts/ABCCameraPlainVariable.woff2") format("woff2");
@@ -13,264 +16,130 @@
         font-display: swap;
       }
       :root {
-        --bg: #ffffff;
-        --ink: rgba(20, 20, 20, 0.9);
-        --ink-2: rgba(20, 20, 20, 0.6);
-        --ink-3: rgba(20, 20, 20, 0.4);
-        --surface: rgba(20, 20, 20, 0.04);
-        --surface-2: rgba(20, 20, 20, 0.08);
-        --line: rgba(20, 20, 20, 0.08);
-        --accent: #0a84ff;
+        --bg: #141414;
+        --ink: #fff;
+        --ink-9: rgba(255, 255, 255, 0.9);
+        --ink-8: rgba(255, 255, 255, 0.8);
+        --ink-5: rgba(255, 255, 255, 0.5);
+        --ink-4: rgba(255, 255, 255, 0.4);
+        --s-5: rgba(255, 255, 255, 0.05);
+        --s-10: rgba(255, 255, 255, 0.1);
+        --s-15: rgba(255, 255, 255, 0.15);
+        --gutter: 12px;
         --ease: cubic-bezier(0.23, 1, 0.32, 1);
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #141414;
-          --ink: rgba(255, 255, 255, 0.9);
-          --ink-2: rgba(255, 255, 255, 0.55);
-          --ink-3: rgba(255, 255, 255, 0.4);
-          --surface: rgba(255, 255, 255, 0.05);
-          --surface-2: rgba(255, 255, 255, 0.1);
-          --line: rgba(255, 255, 255, 0.08);
-        }
-      }
       * { box-sizing: border-box; }
-      html { -webkit-text-size-adjust: 100%; }
+      html { -webkit-text-size-adjust: 100%; background: var(--bg); }
       body {
         margin: 0;
         background: var(--bg);
         color: var(--ink);
-        font: 400 15px/1.55 "Camera Plain", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font: 400 15px/1.3 "Camera Plain", ui-sans-serif, system-ui, -apple-system, sans-serif;
         letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased;
       }
-      main { max-width: 680px; margin: 0 auto; padding: 72px 16px 160px; }
-      header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 56px; }
-      .name { font-weight: 520; font-size: 15px; }
-      .gh {
-        display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px;
-        background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 460; font-size: 13px;
-        transition: background-color 0.2s var(--ease);
+      a { color: inherit; text-decoration: none; }
+      p { margin: 0; }
+      :focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+
+      /* ---------- header: wordmark, centred nav pill, one action ---------- */
+      header {
+        position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+        padding: var(--gutter); background: linear-gradient(var(--bg) 40%, transparent);
       }
-      .gh:hover { background: var(--surface-2); }
-      .links { display: flex; gap: 6px; }
-      .gh svg { width: 14px; height: 14px; }
-      h1 { margin: 0 0 16px; font-size: 40px; font-weight: 400; line-height: 1; letter-spacing: -0.035em; text-wrap: balance; }
-      .lede { margin: 0; color: var(--ink-2); font-size: 17px; max-width: 34em; text-wrap: pretty; }
-      .setup-row { margin-top: 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      .setup {
-        all: unset; box-sizing: border-box; display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 12px;
-        background: var(--ink); color: var(--bg); font-weight: 520; font-size: 14px; cursor: pointer;
-        transition: opacity .2s var(--ease), transform .16s var(--ease);
+      .wordmark { font-size: 18px; font-weight: 520; letter-spacing: -0.01em; }
+      nav { display: flex; gap: 14px; height: 24px; align-items: center; padding: 0 12px; border-radius: 1000px; background: var(--s-10); }
+      nav a { color: var(--ink-9); transition: color 0.2s var(--ease); }
+      nav a:hover { color: var(--ink); }
+
+      /* ---------- pills ---------- */
+      .pill {
+        all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px;
+        border-radius: 1000px; background: var(--s-10); color: var(--ink-8); font-weight: 460; line-height: 1; cursor: pointer; white-space: nowrap;
+        transition: background-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.16s var(--ease);
       }
-      .setup:hover { opacity: .88; }
-      .setup:active { transform: scale(.97); }
-      .setup:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-      .setup-hint { color: var(--ink-3); font-size: 13px; max-width: 30em; }
-      .try a { color: var(--ink); }
-      .try {
-        margin-top: 24px; display: inline-block; padding: 8px 12px; border-radius: 12px; line-height: 1.9;
-        background: var(--surface); color: var(--ink-2); font-size: 13px;
-      }
-      kbd {
-        font: inherit; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 5px;
-        background: var(--surface-2); color: var(--ink); font-variant-numeric: tabular-nums;
-      }
-      section { margin-top: 64px; }
-      h2 { margin: 0 0 6px; font-size: 15px; font-weight: 520; }
-      .sub { margin: 0 0 20px; color: var(--ink-2); }
-      ol.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: step; }
-      ol.steps li {
-        counter-increment: step; display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 16px; border-radius: 20px; background: var(--surface);
-      }
-      ol.steps li::before {
-        content: counter(step); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px;
-        background: var(--surface-2); font-size: 12px; font-weight: 520; font-variant-numeric: tabular-nums;
-      }
-      ol.steps p { margin: 0; color: var(--ink-2); }
-      ol.steps strong { color: var(--ink); font-weight: 520; }
-      .install-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-      .install h2 { font-size: 28px; font-weight: 400; letter-spacing: -0.02em; margin: 0; }
-      .gh-icon { color: var(--ink-3); display: grid; transition: color 0.2s var(--ease); }
-      .gh-icon:hover { color: var(--ink); }
-      .gh-icon svg { width: 22px; height: 22px; }
-      .tabs { display: flex; gap: 24px; margin-bottom: 20px; }
-      .tabs button { all: unset; cursor: pointer; font-size: 17px; color: var(--ink-3); transition: color 0.2s var(--ease); }
-      .tabs button:hover { color: var(--ink-2); }
-      .tabs button[aria-selected="true"] { color: var(--ink); }
-      .tabs button:focus-visible, .block:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
-      .block {
-        all: unset; box-sizing: border-box; position: relative; display: block; width: 100%; padding: 18px 20px; border-radius: 16px;
-        background: var(--surface-2); cursor: copy; font: 400 13.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink);
-        white-space: pre-wrap; overflow-wrap: anywhere;
-      }
-      .block .k { color: #f0718f; }
-      .use { margin-top: 20px; }
-      .use[hidden] { display: none; }
-      .use-label { margin: 0 0 10px; color: var(--ink-2); }
-      .block .copied { position: absolute; top: 8px; right: 12px; font: 460 11px/1 "Camera Plain", ui-sans-serif, system-ui, sans-serif; color: var(--ink-3); }
-      .gh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-      table { width: 100%; border-collapse: collapse; }
-      td { padding: 10px 0; border-top: 1px solid var(--line); vertical-align: top; }
-      td:first-child { width: 132px; white-space: nowrap; padding-right: 16px; }
-      td:last-child { color: var(--ink-2); }
-      td strong { color: var(--ink); font-weight: 520; }
-      .demo { display: grid; gap: 16px; padding: 24px; border-radius: 20px; background: var(--surface); }
-      .demo h4 { margin: 0; font-size: 24px; font-weight: 400; letter-spacing: -0.02em; }
-      .demo p { margin: 0; color: var(--ink-2); }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-      .chip { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: 13px; }
-      .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-      .card { padding: 16px; border-radius: 16px; background: var(--surface-2); display: grid; gap: 4px; }
-      .card span { color: var(--ink-2); font-size: 13px; }
-      footer { margin-top: 64px; color: var(--ink-3); font-size: 13px; }
-      footer a { color: inherit; }
-      @media (max-width: 520px) {
-        main { padding-top: 40px; }
+      .pill:hover { background: var(--s-15); color: var(--ink); }
+      .pill:active { transform: scale(0.97); }
+      .pill:focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+      .pill.solid { background: #fff; color: #141414; }
+      .pill.solid:hover { background: rgba(255, 255, 255, 0.88); }
+      .pill.sm { height: 24px; }
+      .pill.head-end { justify-self: end; } /* after .pill, whose all: unset would reset it */
+      .pill .plus { color: var(--ink-5); }
+
+      /* ---------- hero ---------- */
+      /* One column, flush left: everything reads top to bottom at one measure. */
+      main { max-width: calc(600px + 2 * var(--gutter)); padding: 36px var(--gutter) 160px; }
+      h1 { margin: 0; max-width: 16em; font-size: 40px; font-weight: 400; line-height: 1; letter-spacing: -0.035em; text-wrap: balance; }
+      .lede { margin-top: 24px; max-width: 30em; color: var(--ink-5); text-wrap: pretty; }
+      .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 20px; }
+
+      /* ---------- feature grid ---------- */
+      .features { margin-top: 96px; }
+      .features h2 { margin: 0 0 20px; font-size: 24px; font-weight: 400; line-height: 1.2; letter-spacing: -0.01em; }
+      .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .feature { display: grid; gap: 6px; align-content: start; padding: 20px; border-radius: 20px; background: var(--s-5); }
+      .feature .icon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 10px; border-radius: 10px; background: var(--s-10); color: var(--ink-9); }
+      .feature .icon svg { width: 18px; height: 18px; }
+      .feature .name { display: flex; align-items: center; gap: 8px; color: var(--ink-9); }
+      .feature .name kbd { font: inherit; font-size: 12px; padding: 1px 5px; border-radius: 5px; background: var(--s-10); color: var(--ink-5); }
+      .feature p { color: var(--ink-5); text-wrap: pretty; }
+
+
+      @media (max-width: 720px) {
+        header { grid-template-columns: 1fr auto; }
+        nav { display: none; }
+        main { padding-top: 24px; }
         h1 { font-size: 32px; }
-        td:first-child { width: 96px; }
-      }
+        .features { margin-top: 56px; }
+        }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
   </head>
   <body>
+    <header>
+      <a class="wordmark" href="./">Design toolkit</a>
+      <nav aria-label="Sections">
+        <a href="#tools">Tools</a>
+        <a href="test.html">Test drive</a>
+      </nav>
+      <a class="pill sm head-end" href="https://github.com/davidexo/design-toolkit">GitHub</a>
+    </header>
+
     <main>
-      <header>
-        <span class="name">Design toolkit</span>
-        <span class="links"><a class="gh" href="test.html">Test drive</a>
-        <a class="gh" href="https://github.com/davidexo/design-toolkit">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
-          GitHub
-        </a></span>
-      </header>
-
       <h1>Tweak the design on the page. Let your agent write the code.</h1>
-      <p class="lede">
-        A tiny toolbar for your localhost. Edit text, corner radius, spacing and layout right where you see them,
-        then copy one prompt that tells Claude Code (or any coding agent) to make the same changes in your source.
-      </p>
-      <div class="setup-row">
-        <button class="setup" type="button" data-copy-setup>Copy setup prompt</button>
-        <span class="setup-hint">Paste it into Claude Code, Cursor or any coding agent. It installs and wires it up for you.</span>
+
+      <p class="lede">A tiny toolbar for your localhost. Edit text, radius, spacing and layout where you see them, then copy one prompt for your coding agent.</p>
+      <div class="actions">
+        <button class="pill solid" type="button" data-copy-setup>Copy setup prompt</button>
+        <a class="pill" href="test.html">Test <span class="plus" aria-hidden="true">+</span></a>
       </div>
-      <div class="try">It is running on this page. Press <kbd>T</kbd> <kbd>R</kbd> <kbd>S</kbd> <kbd>V</kbd> or <kbd>C</kbd> and try the demo below, or take the <a href="test.html">guided test drive</a>.</div>
 
-      <section aria-labelledby="install" class="install">
-        <div class="install-head">
-          <h2 id="install">Install</h2>
-          <a class="gh-icon" href="https://github.com/davidexo/design-toolkit" aria-label="design-toolkit on GitHub">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
-          </a>
-        </div>
-        <div class="tabs" role="tablist" aria-label="Install method">
-          <button role="tab" type="button" data-tab="agent" aria-selected="true">agent</button>
-          <button role="tab" type="button" data-tab="npm" aria-selected="false">npm</button>
-          <button role="tab" type="button" data-tab="pnpm" aria-selected="false">pnpm</button>
-          <button role="tab" type="button" data-tab="yarn" aria-selected="false">yarn</button>
-          <button role="tab" type="button" data-tab="bun" aria-selected="false">bun</button>
-        </div>
-        <button class="block" type="button" aria-label="Copy install command"><code id="install-code"></code><span class="copied" aria-live="polite"></span></button>
-        <div class="use" id="use">
-          <p class="use-label">Then render it once, in your root layout:</p>
-          <button class="block" type="button" aria-label="Copy usage code" data-use><code><span class="k">import</span> { DesignToolkit } <span class="k">from</span> "design-toolkit/react";
-
-&lt;<span class="k">DesignToolkit</span> /&gt;</code><span class="copied" aria-live="polite"></span></button>
-        </div>
-      </section>
-
-      <section aria-labelledby="how">
-        <h2 id="how">How it works</h2>
-        <p class="sub">Three steps, no build tools, no account.</p>
-        <ol class="steps">
-          <li><p><strong>Tweak.</strong> Pick a tool from the toolbar at the bottom and change things on your running app. Values snap to a 2px grid.</p></li>
-          <li><p><strong>Copy prompt.</strong> Press <kbd>⌘</kbd><kbd>↵</kbd>. You get one prompt with every change, where it lives in the DOM and which React component renders it.</p></li>
-          <li><p><strong>Paste into your agent.</strong> It finds the source and makes the edit. Your dev server's hot reload shows the result.</p></li>
-        </ol>
-      </section>
-
-      <section aria-labelledby="tools">
+      <section class="features" aria-labelledby="tools">
         <h2 id="tools">Tools</h2>
-        <p class="sub">While a tool is on, clicks never reach your page, so links and buttons stay put.</p>
-        <table>
-          <tbody>
-            <tr><td><kbd>T</kbd> <strong>Text</strong></td><td>Click any copy and type. Deleting text counts too.</td></tr>
-            <tr><td><kbd>R</kbd> <strong>Radius</strong></td><td>Drag the corner handle, step with <kbd>↑</kbd> <kbd>↓</kbd>, or press <kbd>↵</kbd> to type a value.</td></tr>
-            <tr><td><kbd>S</kbd> <strong>Spacing</strong></td><td>Drag padding, margin and gap bands with Figma's keys: <kbd>⌥</kbd> mirrors the opposite side, <kbd>⌥</kbd><kbd>⇧</kbd> all sides.</td></tr>
-            <tr><td><kbd>V</kbd> <strong>Move</strong></td><td>Drag into any container to reorder or re-parent. Pick Absolute from the corner wedge on Move to place it freely, with an optional annotated screenshot.</td></tr>
-            <tr><td><kbd>C</kbd> <strong>Comment</strong></td><td>Click any element, or select some text, and leave a note in your own words. Numbered pins mark each one; click a pin to edit it.</td></tr>
-            <tr><td><kbd>⌘</kbd><kbd>↵</kbd></td><td>Copy the prompt. The wedge on Copy prompt decides whether your agent maps values to your design tokens or uses them as is.</td></tr>
-            <tr><td><kbd>Esc</kbd></td><td>Deselect, then leave the tool.</td></tr>
-          </tbody>
-        </table>
+        <ul class="grid">
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 3.5h14A2.5 2.5 0 0 1 21.5 6v1.5a1.5 1.5 0 1 1-3 0v-1h-5v12h1.3a1.5 1.5 0 1 1 0 3H9.2a1.5 1.5 0 1 1 0-3h1.3v-12h-5v1a1.5 1.5 0 1 1-3 0V6A2.5 2.5 0 0 1 5 3.5"/></svg></span><span class="name">Text <kbd>T</kbd></span><p>Click any copy and type. Deleting counts too.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4 21a1.5 1.5 0 0 1-1.5-1.5V12A9.5 9.5 0 0 1 12 2.5h7.5a1.5 1.5 0 0 1 0 3H12A6.5 6.5 0 0 0 5.5 12v7.5A1.5 1.5 0 0 1 4 21"/></svg></span><span class="name">Radius <kbd>R</kbd></span><p>Drag the corner handle, or type a value.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M6 2.5h12A3.5 3.5 0 0 1 21.5 6v12a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 18V6A3.5 3.5 0 0 1 6 2.5m0 3a.5.5 0 0 0-.5.5v12c0 .28.22.5.5.5h12a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5zm3.5 4h5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-4c0-.28.22-.5.5-.5"/></svg></span><span class="name">Spacing <kbd>S</kbd></span><p>Drag padding, margin and gap, with Figma's keys.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.2 3.2a1.4 1.4 0 0 1 1.5-.3l15.2 6.2a1.4 1.4 0 0 1-.2 2.6l-6 1.6a1.6 1.6 0 0 0-1.2 1.1l-1.6 6a1.4 1.4 0 0 1-2.6.2L3.1 5.4a1.4 1.4 0 0 1 .3-1.5z"/></svg></span><span class="name">Move <kbd>V</kbd></span><p>Reorder, re-parent, or place it freely.</p></li>
+          <li class="feature"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M12 2.5c5.25 0 9.5 3.64 9.5 8.25S17.25 19 12 19c-.93 0-1.83-.11-2.68-.33l-4.1 2.36a1.2 1.2 0 0 1-1.77-1.27l.6-3.18C2.95 15.08 2.5 12.96 2.5 10.75 2.5 6.14 6.75 2.5 12 2.5"/></svg></span><span class="name">Comment <kbd>C</kbd></span><p>Leave a note on any element or selected text.</p></li>
+        </ul>
       </section>
 
-      <section aria-labelledby="demo">
-        <h2 id="demo">Try it here</h2>
-        <p class="sub">A sample layout to play with. Changes stay on this page.</p>
-        <div class="demo">
-          <h4>Components</h4>
-          <p>Where the team keeps the interactive pieces it builds.</p>
-          <div class="chips">
-            <button class="chip" type="button">Inputs</button>
-            <button class="chip" type="button">Actions</button>
-            <button class="chip" type="button">Navigation</button>
-            <button class="chip" type="button">Feedback</button>
-          </div>
-          <div class="cards">
-            <article class="card"><strong>Switch</strong><span>Toggles and steppers.</span></article>
-            <article class="card"><strong>Toast</strong><span>Status that comes and goes.</span></article>
-          </div>
-        </div>
-      </section>
-
-      <footer>Made by <a href="https://github.com/davidexo">@davidexo</a>. One file, no dependencies.</footer>
     </main>
 
     <script>
-      const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-      const pm = (cmd) => ({ text: `${cmd} design-toolkit`, html: `<span class="k">${cmd}</span> design-toolkit` });
       const agent = `Set up design-toolkit (https://www.npmjs.com/package/design-toolkit) in this project:
 1. Install it with the package manager this project already uses (check the lockfile).
 2. In a React app (Next.js, Vite, Remix...), render <DesignToolkit /> from "design-toolkit/react" once in the root layout. Otherwise, import "design-toolkit" in development only.
 3. Change nothing else. Then start or reload the dev server and confirm the toolbar shows at the bottom of the page.`;
-      const installs = {
-        npm: pm("npm install"),
-        agent: { text: agent, html: esc(agent) },
-        pnpm: pm("pnpm add"),
-        yarn: pm("yarn add"),
-        bun: pm("bun add"),
-      };
-      const USE = `import { DesignToolkit } from "design-toolkit/react";\n\n<DesignToolkit />`;
-      const code = document.getElementById("install-code");
-      const use = document.getElementById("use");
-      let current = "agent";
-      const show = (name) => {
-        current = name;
-        code.innerHTML = installs[name].html;
-        use.hidden = name === "agent";
-        document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
-      };
-      document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
-      document.querySelectorAll(".block").forEach((block) =>
-        block.addEventListener("click", async () => {
-          const note = block.querySelector(".copied");
-          try {
-            await navigator.clipboard.writeText(block.hasAttribute("data-use") ? USE : installs[current].text);
-            note.textContent = "Copied";
-          } catch {
-            note.textContent = "Select and copy";
-          }
-          setTimeout(() => (note.textContent = ""), 1600);
-        }),
-      );
-      show("agent");
       const setup = document.querySelector("[data-copy-setup]");
       setup.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(agent);
           setup.textContent = "Copied, paste it into your agent";
         } catch {
-          setup.textContent = "Copy failed, use the agent tab below";
+          setup.textContent = "Copy failed, try again";
         }
         setTimeout(() => (setup.textContent = "Copy setup prompt"), 2200);
       });
