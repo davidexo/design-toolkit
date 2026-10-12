@@ -71,8 +71,28 @@
       /* One column, flush left: everything reads top to bottom at one measure. */
       main { max-width: calc(600px + 2 * var(--gutter)); padding: 36px var(--gutter) 160px; }
       h1 { margin: 0; max-width: 16em; font-size: 40px; font-weight: 400; line-height: 1; letter-spacing: -0.035em; text-wrap: balance; }
-      .lede { margin-top: 24px; max-width: 30em; color: var(--ink-5); text-wrap: pretty; }
-      .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 20px; }
+      .lede { margin: 0; max-width: 30em; color: var(--ink-5); text-wrap: pretty; }
+      .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+      /* The hero as if the Spacing tool had it selected, in quiet greys: selection, padding (top and bottom)
+         and gap bands with their values. Real padding and gap, so the numbers are true. */
+      .hero {
+        --pt: 24px; --pr: 0px; --pb: 24px; --pl: 0px; --g: 24px;
+        position: relative; display: flex; flex-direction: column; gap: var(--g); width: fit-content; max-width: 100%;
+        padding: var(--pt) var(--pr) var(--pb) var(--pl);
+      }
+      .spec { position: absolute; inset: 0; pointer-events: none; user-select: none; font: 500 11px/1 ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
+      .spec .sel { position: absolute; inset: 0; box-shadow: 0 0 0 1px rgba(255, 255, 255, .22); }
+      .spec .tag { position: absolute; left: -0.5px; top: -24px; padding: 4px 6px; border-radius: 6px; background: rgba(255, 255, 255, .1); color: var(--ink-8); white-space: nowrap; }
+      /* Bands drag like the Spacing tool's: padding grows inward, ⌥ mirrors the opposite side, double-click resets. */
+      .spec .band { position: absolute; display: grid; place-items: center; pointer-events: auto; touch-action: none; transition: filter .15s; }
+      .spec .band:hover, .spec .band.drag { filter: brightness(1.8); }
+      .spec .t, .spec .b, .spec .gap { cursor: ns-resize; }
+      .spec .pad { background: rgba(255, 255, 255, .04); }
+      .spec .gap { background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .1) 0 1px, transparent 1px 6px); }
+      .spec .lb { padding: 3px 5px; border-radius: 4px; background: #2a2a2a; color: var(--ink-8); box-shadow: 0 0 0 1px rgba(255, 255, 255, .08); }
+      .spec .t { left: 0; right: 0; top: 0; height: var(--pt); }
+      .spec .b { left: 0; right: 0; bottom: 0; height: var(--pb); }
 
       /* ---------- feature grid ---------- */
       .features { margin-top: 96px; }
@@ -100,12 +120,18 @@
     </header>
 
     <main>
+      <div class="hero" id="hero">
       <h1>Tweak the design on the page. Let your agent write the code.</h1>
-
       <p class="lede">A tiny toolbar for your localhost. Edit text, radius, spacing and layout where you see them, then copy one prompt for your coding agent.</p>
       <div class="actions">
         <button class="pill solid swap" type="button" data-copy-setup data-state="idle"><span data-for="idle">Copy prompt</span><span data-for="done" aria-hidden="true">Copied</span><span data-for="error" aria-hidden="true">Copy failed</span></button>
         <a class="pill" href="test.html">Test</a>
+      </div>
+      <div class="spec" aria-hidden="true">
+        <span class="sel"></span><span class="tag">div.hero</span>
+        <span class="band pad t" data-side="pt" title="Top padding: drag, ⌥ for top and bottom"><span class="lb">24</span></span>
+        <span class="band pad b" data-side="pb" title="Bottom padding: drag, ⌥ for top and bottom"><span class="lb">24</span></span>
+      </div>
       </div>
 
       <section class="features" aria-labelledby="tools">
@@ -127,6 +153,75 @@
 1. Install it with the package manager this project already uses (check the lockfile).
 2. In a React app (Next.js, Vite, Remix...), render <DesignToolkit /> from "design-toolkit/react" once in the root layout. Otherwise, import "design-toolkit" in development only.
 3. Change nothing else. Then start or reload the dev server and confirm the toolbar shows at the bottom of the page.`;
+      /* Gap bands sit between the hero's rows, measured so they follow wrapping and resizing. */
+      const hero = document.getElementById("hero");
+      const spec = hero.querySelector(".spec");
+      /* Updates the bands in place (not rebuilt), so a gap band keeps the pointer while it is being dragged. */
+      const placeGaps = () => {
+        const box = hero.getBoundingClientRect();
+        const rows = [...hero.children].filter((c) => c !== spec);
+        const gaps = [...spec.querySelectorAll(".gap")];
+        for (let i = 0; i < rows.length - 1; i++) {
+          let g = gaps[i];
+          if (!g) {
+            g = document.createElement("span");
+            g.className = "band gap";
+            g.dataset.side = "g";
+            g.title = "Gap: drag";
+            g.innerHTML = '<span class="lb"></span>';
+            spec.append(g);
+          }
+          const a = rows[i].getBoundingClientRect();
+          const b = rows[i + 1].getBoundingClientRect();
+          Object.assign(g.style, { left: "var(--pl)", right: "var(--pr)", top: `${a.bottom - box.top}px`, height: `${b.top - a.bottom}px` });
+          g.firstChild.textContent = Math.round(b.top - a.bottom);
+        }
+      };
+      new ResizeObserver(placeGaps).observe(hero);
+      document.fonts?.ready.then(placeGaps);
+
+      /* Dragging a band: which way grows it, and what ⌥ mirrors. Values snap to 2px like the toolkit. */
+      const GROW = { pt: [0, 1], pb: [0, -1], g: [0, 1] };
+      const MIRROR = { pt: "pb", pb: "pt" };
+      const value = (side) => parseFloat(getComputedStyle(hero).getPropertyValue(`--${side}`)) || 0;
+      const setValue = (side, v) => {
+        v = Math.max(0, Math.min(96, Math.round(v / 2) * 2));
+        hero.style.setProperty(`--${side}`, `${v}px`);
+        const band = spec.querySelector(`.pad[data-side="${side}"] .lb`);
+        if (band) band.textContent = v;
+      };
+      spec.addEventListener("pointerdown", (e) => {
+        const band = e.target.closest(".band");
+        if (!band || e.button !== 0) return;
+        e.preventDefault();
+        band.setPointerCapture(e.pointerId);
+        band.classList.add("drag");
+        const side = band.dataset.side;
+        const start = { x: e.clientX, y: e.clientY, v: value(side) };
+        const move = (ev) => {
+          const [dx, dy] = GROW[side];
+          const v = start.v + (ev.clientX - start.x) * dx + (ev.clientY - start.y) * dy;
+          setValue(side, v);
+          if (ev.altKey && MIRROR[side]) setValue(MIRROR[side], v);
+          placeGaps();
+        };
+        const up = () => {
+          band.classList.remove("drag");
+          band.removeEventListener("pointermove", move);
+          band.removeEventListener("pointerup", up);
+          band.removeEventListener("pointercancel", up);
+        };
+        band.addEventListener("pointermove", move);
+        band.addEventListener("pointerup", up);
+        band.addEventListener("pointercancel", up);
+      });
+      spec.addEventListener("dblclick", (e) => {
+        const side = e.target.closest(".band")?.dataset.side;
+        if (!side) return;
+        setValue(side, 24);
+        placeGaps();
+      });
+
       /* All labels share one grid cell, so the button keeps the width of the longest and only the label changes. */
       const setup = document.querySelector("[data-copy-setup]");
       let reset;
@@ -145,6 +240,5 @@
         reset = setTimeout(() => setState("idle"), 2200);
       });
     </script>
-    <script src="toolkit.js" async></script>
   </body>
 </html>
