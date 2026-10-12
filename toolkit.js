@@ -76,8 +76,10 @@
   const comments = []; // { n, el, text, quote, tag, path, components }
   let composing = null; // { el, quote, comment? } while the note box is open
 
+  const styleEdits = new Map(); // element -> { props: Map(prop -> { before, shown, after, inline }), tag, path, components }: fill and border
+  const originalStyle = new WeakMap();
   const removeEdits = new Map(); // element -> { display, twins, tag, path, components }: deleted with the Move tool
-  const count = () => textEdits.size + radiusEdits.size + spaceEdits.size + moveEdits.size + removeEdits.size + comments.length;
+  const count = () => textEdits.size + radiusEdits.size + spaceEdits.size + styleEdits.size + moveEdits.size + removeEdits.size + comments.length;
   const boxTool = () => tool === "radius" || tool === "spacing" || tool === "move" || tool === "comment";
 
   /* ---------- page styles (attributes only, so React keeps owning the DOM) ---------- */
@@ -178,7 +180,7 @@
       .bar[data-dragging], .bar[data-dragging] * { cursor: grabbing !important; }
       .bar .close { width: 30px; }
       .bar .close > svg { width: 14px; height: 14px; }
-      /* Collapsed: one button that shows the edit count, drags like the bar, and opens the bar again. */
+      /* Collapsed: one + button that drags like the bar and opens it again. */
       .bar .expand { display: none; }
       .bar[data-collapsed] > :not(.expand) { display: none; }
       .bar[data-collapsed] .expand {
@@ -192,8 +194,6 @@
       @keyframes x-to-plus { from { rotate: 0deg; } }
       @keyframes plus-to-x { from { rotate: 45deg; } }
       @media (prefers-reduced-motion: reduce) { .bar .expand > svg, .bar .close > svg { animation: none; } }
-      .bar .expand .count { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: ${BLUE}; }
-      .bar .expand .count:empty { display: none; }
       .bar button, .menu button { all: unset; box-sizing: border-box; cursor: pointer; -webkit-tap-highlight-color: transparent; }
       .bar button:focus-visible, .menu button:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
       .bar .tool {
@@ -219,6 +219,19 @@
         opacity: .4; transition: opacity .16s;
       }
       .bar .notch:hover::after, .bar .notch[aria-expanded="true"]::after { opacity: .9; }
+      .bar [data-needs-edits][hidden] { display: none; }
+      /* "Add to Figma": appears above the toolbar while Move has a selection. */
+      .addfig {
+        all: unset; box-sizing: border-box; position: fixed; z-index: 2147483647; display: none; align-items: center; gap: 6px;
+        height: 32px; padding: 0 12px; border-radius: 999px; cursor: pointer; background: #fff; color: #141414;
+        font: 520 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em; -webkit-font-smoothing: antialiased;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, .08), 0 8px 24px rgba(0, 0, 0, .25); animation: rise .25s cubic-bezier(.22, 1.14, .36, 1) both;
+        transition: transform .16s cubic-bezier(.23, 1, .32, 1);
+      }
+      .addfig:hover { background: rgba(255, 255, 255, .9); }
+      .addfig:active { transform: scale(.97); }
+      .addfig:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
+      .bar .slot[data-needs-edits]:not([hidden]) { animation: pop .3s cubic-bezier(.3, 1.42, .4, 1) both; }
       .split { width: 1px; height: 20px; margin: 0 5px; flex: none; background: rgba(var(--ink-rgb), .12); }
       /* Copy prompt: the one action, so an icon button like the tools but filled in the accent, never dimmed once there is something to copy. */
       .bar .copy {
@@ -259,6 +272,18 @@
       .menu .mi[aria-checked="true"] svg { visibility: visible; }
       .menu .mi small { grid-column: 2; margin-top: 3px; font-size: 11px; color: rgba(var(--ink-rgb), .5); white-space: normal; line-height: 1.3; }
       .menu .mi[aria-disabled="true"] { opacity: .4; pointer-events: none; }
+      /* Toggle card: label and hint on the left, a switch on the right. */
+      .menu .tg { display: flex; align-items: center; gap: 16px; width: 100%; padding: 10px; border-radius: var(--tool-r); transition: background-color .15s; }
+      .menu .tg:hover { background: rgba(var(--ink-rgb), .07); }
+      .menu .tg-text { display: grid; gap: 4px; flex: 1; }
+      .menu .tg small { font-size: 11px; color: rgba(var(--ink-rgb), .5); line-height: 1.3; }
+      .menu .tg .sw { position: relative; flex: none; width: 30px; height: 18px; border-radius: 999px; background: rgba(var(--ink-rgb), .18); transition: background-color .2s; }
+      .menu .tg .sw::after {
+        content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: translate .3s cubic-bezier(.3, 1.42, .4, 1);
+      }
+      .menu .tg[aria-checked="true"] .sw { background: var(--pick); }
+      .menu .tg[aria-checked="true"] .sw::after { translate: 12px 0; }
       .menu hr { border: 0; height: 1px; margin: 6px 4px; background: rgba(var(--ink-rgb), .1); }
       .tip, .toast {
         position: fixed; z-index: 2147483647; display: none; color: rgb(var(--ink-rgb)); background: rgba(var(--elev-rgb), .92);
@@ -326,6 +351,7 @@
         box-shadow: inset 0 1px 0 rgba(var(--ink-rgb), .06), 0 0 0 1px rgba(var(--ink-rgb), .1), 0 10px 40px rgba(0,0,0,.25);
         font: 460 12px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased; user-select: none;
+        max-height: calc(100vh - 96px); overflow: auto; overscroll-behavior: contain;
       }
       .panel header { padding: 10px 12px 8px; border-bottom: 1px solid rgba(var(--ink-rgb), .08); display: grid; gap: 4px; }
       .panel .el { color: rgba(var(--ink-rgb), .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -336,6 +362,15 @@
       .panel .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
       .panel .row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
       .panel .row4[hidden] { display: none; }
+      .panel .row1 { display: grid; grid-template-columns: 1fr; }
+      /* Colour fields: a swatch that opens the system picker, then the value as text (hex, rgba, none). */
+      .panel .f.c .sw {
+        position: relative; flex: none; width: 14px; height: 14px; border-radius: 4px; overflow: hidden; cursor: pointer;
+        box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .2);
+        background-image: linear-gradient(var(--sw, transparent), var(--sw, transparent)), repeating-conic-gradient(rgba(var(--ink-rgb), .25) 0 25%, transparent 0 50%);
+        background-size: auto, 6px 6px;
+      }
+      .panel .f.c .sw input { position: absolute; inset: -4px; width: 22px; height: 22px; opacity: 0; cursor: pointer; border: 0; padding: 0; }
       .panel .f {
         display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px; border-radius: 8px;
         background: rgba(var(--ink-rgb), .05); box-shadow: inset 0 0 0 1px transparent; transition: box-shadow .12s;
@@ -395,6 +430,19 @@
           <label class="f" data-f="margin-right" title="Right margin"><span class="k">R</span><input inputmode="decimal" aria-label="Right margin"></label>
           <label class="f" data-f="margin-bottom" title="Bottom margin"><span class="k">B</span><input inputmode="decimal" aria-label="Bottom margin"></label>
           <label class="f" data-f="margin-left" title="Left margin"><span class="k">L</span><input inputmode="decimal" aria-label="Left margin"></label>
+        </div>
+      </section>
+      <section data-sec="fill">
+        <h4>Fill</h4>
+        <div class="row1">
+          <label class="f c" data-f="fill" title="Background colour"><span class="sw"><input type="color" tabindex="-1" aria-label="Pick fill colour"></span><input class="hex" spellcheck="false" aria-label="Fill colour"></label>
+        </div>
+      </section>
+      <section data-sec="border">
+        <h4>Border</h4>
+        <div class="row">
+          <label class="f" data-f="border" title="Border width"><span class="k">W</span><input inputmode="decimal" aria-label="Border width"></label>
+          <label class="f c" data-f="border-color" title="Border colour"><span class="sw"><input type="color" tabindex="-1" aria-label="Pick border colour"></span><input class="hex" spellcheck="false" aria-label="Border colour"></label>
         </div>
       </section>
     </aside>
@@ -506,10 +554,10 @@
         ? `<span class="slot">${toolButton(id, label, key)}<button class="notch" data-menu="move" aria-haspopup="menu" aria-expanded="false" aria-label="Move options" data-tip="Move options"></button></span>`
         : toolButton(id, label, key),
     ).join("") +
-    `<span class="split"></span>
-    <span class="slot"><button class="copy" aria-disabled="true" aria-label="Copy prompt">${ICON.copy}<span class="badge" hidden></span></button><button class="notch" data-menu="copy" aria-haspopup="menu" aria-expanded="false" aria-label="Prompt options" data-tip="Prompt options"></button></span>
+    `<span class="split" data-needs-edits></span>
+    <span class="slot" data-needs-edits><button class="copy" aria-disabled="true" aria-label="Copy prompt">${ICON.copy}<span class="badge" hidden></span></button><button class="notch" data-menu="copy" aria-haspopup="menu" aria-expanded="false" aria-label="Prompt options" data-tip="Prompt options"></button></span>
     <button class="tool close" aria-label="Collapse toolbar" data-tip="Collapse">${ICON.close}</button>
-    <button class="expand" aria-label="Open design toolkit" data-tip="Design toolkit">${ICON.close}<span class="count"></span></button>`;
+    <button class="expand" aria-label="Open design toolkit" data-tip="Design toolkit">${ICON.close}</button>`;
   const copyButton = bar.querySelector(".copy");
   const badge = bar.querySelector(".badge");
 
@@ -518,19 +566,22 @@
     bar.querySelectorAll(".tool").forEach((b) => b.setAttribute("aria-pressed", String(tool === b.dataset.tool)));
     bar.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", String(menuOpen === b.dataset.menu)));
     copyButton.setAttribute("aria-disabled", String(n === 0));
+    /* Copy prompt (and its divider) only appear once there is something to copy. */
+    const showCopy = n > 0 || (status === "done" && lastCopy === "prompt"); // stay for the ✓ after copying, then go
+    bar.querySelectorAll("[data-needs-edits]").forEach((x) => (x.hidden = !showCopy));
+    if (!showCopy && menuOpen === "copy") menuOpen = null;
     copyButton.dataset.tip = n ? "Copy prompt" : "Make an edit first";
     copyButton.dataset.key = n ? `${MOD}↵` : "";
     badge.hidden = !n;
     badge.textContent = n;
     /* A check for a moment after copying, the copy glyph otherwise. */
-    const glyphName = status === "done" && !n ? "check" : "copy";
+    const glyphName = status === "done" && !n && lastCopy === "prompt" ? "check" : "copy";
     if (copyButton.dataset.glyph !== glyphName) {
       copyButton.dataset.glyph = glyphName;
       copyButton.querySelector("svg").outerHTML = ICON[glyphName];
     }
     copyButton.classList.toggle("done", glyphName === "check");
     bar.toggleAttribute("data-collapsed", collapsed);
-    bar.querySelector(".expand .count").textContent = n || "";
     placeBar();
 
     /* Status floats above the toolbar instead of pushing the tools around. */
@@ -550,11 +601,16 @@
     const item = (attrs, checked, label, hint, disabled = false) =>
       `<button class="mi" ${attrs} aria-checked="${checked}" aria-disabled="${disabled}">${ICON.check}<span>${label}</span>${hint ? `<small>${hint}</small>` : ""}</button>`;
     if (menuOpen === "move") {
-      menu.innerHTML = `<div class="mh">Move</div>
-        ${item('role="menuitemradio" data-set="flow"', !moveAbsolute, "Flow", "Drop into containers. Claude moves it in the layout.")}
-        ${item('role="menuitemradio" data-set="absolute"', moveAbsolute, "Absolute", "Place anywhere. Claude positions it absolutely.")}
-        <hr />
-        ${item('role="menuitemcheckbox" data-set="shot"', moveScreenshot, "Screenshot", "Copy an annotated screenshot of absolute moves first.", !moveAbsolute)}`;
+      /* One toggle card: off is Flow (the default), on is Absolute. Updated in place so the switch slides. */
+      const hint = moveAbsolute ? "Place anywhere, sent with a screenshot." : "Off: drop into containers, in the layout.";
+      const tg = menu.querySelector(".tg");
+      if (tg && menu.style.display === "block") {
+        tg.setAttribute("aria-checked", String(moveAbsolute));
+        tg.querySelector("small").textContent = hint;
+      } else menu.innerHTML = `<button class="tg" role="menuitemcheckbox" data-set="toggle-absolute" aria-checked="${moveAbsolute}">
+          <span class="tg-text"><span>Absolute position</span><small>${hint}</small></span>
+          <span class="sw" aria-hidden="true"></span>
+        </button>`;
     } else {
       const n = count();
       menu.innerHTML = `<div class="mh">Prompt</div>
@@ -590,6 +646,7 @@
     const b = e.target.closest("button");
     if (!b) return;
     if (dragged) return; // the release at the end of a drag is not a click
+    if (pressOpened) return void (pressOpened = false); // the release after a long press that opened options
     if (b.classList.contains("close")) return setCollapsed(true);
     if (b.classList.contains("expand")) return setCollapsed(false);
     if (b.dataset.tool) setTool(tool === b.dataset.tool ? null : b.dataset.tool);
@@ -597,15 +654,39 @@
     else if (b.classList.contains("copy") && count()) copy();
   });
 
+  /* A tool with options (the corner wedge) also opens them on right-click or a long press, like Figma. */
+  const menuFor = (b) => (b && !b.dataset.menu ? b.closest(".slot")?.querySelector("[data-menu]")?.dataset.menu : null);
+  let pressTimer = null;
+  let pressOpened = false;
+  bar.addEventListener("contextmenu", (e) => {
+    const m = menuFor(e.target.closest("button"));
+    if (!m) return;
+    e.preventDefault();
+    setMenu(m);
+  });
+  bar.addEventListener("pointerdown", (e) => {
+    pressOpened = false;
+    const m = menuFor(e.target.closest("button"));
+    if (!m || e.button !== 0) return;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      if (dragged) return;
+      pressOpened = true;
+      setMenu(m);
+    }, 450);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((t) => bar.addEventListener(t, () => clearTimeout(pressTimer)));
+
   menu.addEventListener("click", (e) => {
-    const b = e.target.closest(".mi");
+    const b = e.target.closest(".mi, .tg");
     if (!b) return;
     const set = b.dataset.set;
-    if (set === "flow") moveAbsolute = false;
-    if (set === "absolute") moveAbsolute = true;
-    if (set === "shot") moveScreenshot = !moveScreenshot;
+    if (set === "toggle-absolute") moveAbsolute = !moveAbsolute;
     if (set === "tokens") useTokens = !useTokens;
-    if (set?.startsWith("theme-")) host.dataset.theme = theme = set.slice(6);
+    if (set?.startsWith("theme-")) {
+      host.dataset.theme = theme = set.slice(6);
+      window.dispatchEvent(new CustomEvent("design-toolkit:theme", { detail: { theme } })); // pages can follow it
+    }
     if (set === "revert") {
       menuOpen = null;
       return revertAll();
@@ -613,10 +694,8 @@
     try {
       localStorage.setItem("ptk-tokens", useTokens ? "on" : "off");
       localStorage.setItem("ptk-move", moveAbsolute ? "absolute" : "flow");
-      localStorage.setItem("ptk-shot", moveScreenshot ? "on" : "off");
       localStorage.setItem("ptk-theme", theme);
     } catch {}
-    if (set === "flow" || set === "absolute") menuOpen = null;
     render();
   });
 
@@ -703,6 +782,7 @@
       if (!dragged && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
       if (!dragged) {
         dragged = true;
+        clearTimeout(pressTimer); // a drag is not a long press
         bar.setAttribute("data-dragging", "");
         menuOpen = null;
         tip.style.display = "none";
@@ -924,6 +1004,10 @@
     }
     selected = el;
     if (el && !originalRadius.has(el)) originalRadius.set(el, getComputedStyle(el).borderRadius);
+    if (el && !originalStyle.has(el)) {
+      const cs = getComputedStyle(el);
+      originalStyle.set(el, Object.fromEntries(STYLE_PROPS.map((p) => [p, cs.getPropertyValue(p)])));
+    }
     if (el && !originalSpace.has(el)) {
       const cs = getComputedStyle(el);
       originalSpace.set(el, Object.fromEntries(SPACE_PROPS.map((p) => [p, cs.getPropertyValue(p)])));
@@ -957,6 +1041,7 @@
     paintSpacing(tool === "spacing" ? r : null);
     paintPanel(tool === "radius" || tool === "spacing" ? r : null);
     paintMove(tool === "move" ? r : null);
+    paintFigma();
   }
 
   /* Pages scroll and animate under the overlay, so it follows every frame while a box tool is on. */
@@ -1143,6 +1228,66 @@
     paint();
   }
 
+  /* ================= Fill and border ================= */
+
+  const BORDER_SIDES = (what) => SIDES.map((s) => `border-${s}-${what}`);
+  const STYLE_PROPS = ["background-color", ...BORDER_SIDES("width"), ...BORDER_SIDES("style"), ...BORDER_SIDES("color")];
+
+  /* Computed colours come back as rgb()/rgba(); people and prompts read hex. */
+  function hexOf(color) {
+    const m = String(color).match(/rgba?\(([^)]+)\)/);
+    if (!m) return color;
+    const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+    if (a === 0) return "none";
+    const hex = `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+    return a < 1 ? `${hex} at ${Math.round(a * 100)}%` : hex;
+  }
+  const isColorProp = (prop) => /color$/.test(prop);
+  const shownStyle = (prop, v) => (isColorProp(prop) ? hexOf(v) : v);
+
+  function setStyle(el, props, value, keep = false) {
+    const cs = getComputedStyle(el);
+    if (!styleEdits.has(el)) styleEdits.set(el, { props: new Map(), ...describe(el) });
+    const edit = styleEdits.get(el);
+    for (const prop of props) {
+      if (!edit.props.has(prop)) {
+        edit.props.set(prop, { before: originalStyle.get(el)?.[prop] ?? cs.getPropertyValue(prop), shown: cs.getPropertyValue(prop), inline: el.style.getPropertyValue(prop) });
+      }
+      const pe = edit.props.get(prop);
+      el.style.setProperty(prop, value);
+      pe.after = getComputedStyle(el).getPropertyValue(prop);
+      /* keep: a value you set on purpose stays in the prompt even when it matches what the page computes
+         (a border colour that equals the text colour it would otherwise inherit). */
+      if (pe.after === pe.shown && !keep) {
+        if (pe.inline) el.style.setProperty(prop, pe.inline);
+        else el.style.removeProperty(prop);
+        edit.props.delete(prop);
+      }
+    }
+    if (!edit.props.size) styleEdits.delete(el);
+    mark(el);
+    render();
+    paint();
+  }
+
+  /* A width on a borderless element needs a style too, or nothing shows. */
+  function setBorderWidth(el, v) {
+    v = Math.max(0, v);
+    if (v > 0 && getComputedStyle(el).borderTopStyle === "none") setStyle(el, BORDER_SIDES("style"), "solid");
+    setStyle(el, BORDER_SIDES("width"), `${v}px`);
+  }
+
+  function setColor(el, f, raw) {
+    const v = raw.trim().toLowerCase();
+    const value = v === "none" || v === "transparent" ? "transparent" : /^[0-9a-f]{3,8}$/.test(v) ? `#${v}` : v;
+    if (!CSS.supports("color", value)) return;
+    if (f === "fill") setStyle(el, ["background-color"], value);
+    else {
+      if (getComputedStyle(el).borderTopStyle === "none") setBorderWidth(el, 1);
+      setStyle(el, BORDER_SIDES("color"), value, true);
+    }
+  }
+
   const spaceField = (props) => ({
     read: () => `${Math.round(px(getComputedStyle(selected), props[0]) * 10) / 10}`,
     step: (dir, e) => setSpace(selected, props, stepValue(px(getComputedStyle(selected), props[0]), dir, e)),
@@ -1294,12 +1439,10 @@
                      on drop a styled copy takes that slot and the original leaves, so the page reflows
                      exactly as the change would. The prompt asks for a JSX move or reorder.
      Absolute        drag it anywhere. It floats above everything, a dashed ghost keeps its old spot, and
-                     the prompt asks for position: absolute there (optionally with a cropped screenshot). */
+                     the prompt asks for position: absolute there (with an annotated screenshot). */
   let moveAbsolute = false;
-  let moveScreenshot = false;
   try {
     moveAbsolute = localStorage.getItem("ptk-move") === "absolute";
-    moveScreenshot = localStorage.getItem("ptk-shot") === "on";
   } catch {}
   let pendingPrompt = false; // a screenshot went to the clipboard; the next ⌘↵ copies the text
 
@@ -1381,7 +1524,8 @@
     if (n === document.body) return "<body>";
     const cls = [...n.classList].find((c) => !c.startsWith("ptk"));
     const name = cls ? `.${cls.replace(/^[A-Za-z]+-module__[A-Za-z0-9_-]+__/, "")}` : "";
-    const text = (n.innerText || "").trim().replace(/\s+/g, " ");
+    /* A moved element is hidden while its floating copy shows: read the copy's visible text. */
+    const text = (n.innerText || moveEdits.get(n)?.clone?.innerText || "").trim().replace(/\s+/g, " ");
     const snippet = text ? ` "${text.slice(0, 32)}${text.length > 32 ? "…" : ""}"` : "";
     const comp = componentNames(inflowOwner.get(n) ?? n)[0];
     return `<${n.tagName.toLowerCase()}${name}${snippet}>${comp ? ` (in <${comp}>)` : ""}`;
@@ -1646,6 +1790,44 @@
   const insertLine = Object.assign(document.createElement("div"), { className: "insert" });
   root.append(insertLine);
 
+  /* Add to Figma: with Move and a selection, one click copies a prompt for the agent to capture that element
+     into Figma through the Figma MCP server (its generate_figma_design capture). */
+  const figButton = Object.assign(document.createElement("button"), { className: "addfig", type: "button", textContent: "Add to Figma" });
+  root.append(figButton);
+
+  function paintFigma() {
+    const show = tool === "move" && selected?.isConnected && !drag && !menuOpen && status === "idle";
+    figButton.style.display = show ? "inline-flex" : "none";
+    if (!show) return;
+    const b = bar.getBoundingClientRect();
+    const w = figButton.offsetWidth;
+    Object.assign(figButton.style, { left: `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`, ...nextToBar(8) });
+  }
+
+  function figmaPrompt(el) {
+    const d = describe(el);
+    return `Add this element to Figma: ${short(el)} on ${location.href}
+Selector: ${d.path}
+
+Use the Figma MCP server for this (its generate_figma_design capture), not a screenshot or a rebuild by hand: capture it from the running page with "Select element" on this element, so it lands as editable Figma layers. Ask me which Figma file to use if you don't have one.`;
+  }
+
+  figButton.addEventListener("click", async () => {
+    if (!selected) return;
+    try {
+      await navigator.clipboard.writeText(figmaPrompt(selected));
+      lastCopy = "figma";
+      status = "done";
+      message = "Copied. Paste it into your agent";
+    } catch {
+      status = "error";
+      message = "Could not reach the clipboard. Click the page and try again";
+    }
+    render();
+    paint();
+    setTimeout(() => status !== "idle" && ((status = "idle"), render(), paint()), 2400);
+  });
+
   function paintMove(r) {
     /* Ghosts: one dashed placeholder per absolute move, at its original spot. */
     const list = tool === "move" ? [...moveEdits.values()].filter((e) => e.mode === "absolute") : [];
@@ -1709,8 +1891,8 @@
 
   /* ---------- screenshot (absolute moves) ---------- */
 
-  /* Grab one frame of this tab (Chrome asks once to share it), crop to where things moved from and to,
-     and draw an arrow from each old spot to its new one. The toolkit's own UI is hidden for the frame. */
+  /* Grab one frame of this tab (Chrome asks once to share it), the whole visible page, and draw an
+     arrow from each old spot to its new one. The toolkit's own UI is hidden for the frame. */
   async function screenshot() {
     const moves = [...moveEdits.values()].filter((e) => e.mode === "absolute");
     if (!moves.length || !navigator.mediaDevices?.getDisplayMedia) return null;
@@ -1720,7 +1902,7 @@
     } catch {
       return null;
     }
-    const hidden = [...root.children].filter((n) => n.tagName !== "STYLE" && !n.classList.contains("ghosts"));
+    const hidden = [...root.children].filter((n) => n.tagName !== "STYLE"); // ghosts too: the image draws its own
     const was = hidden.map((n) => n.style.visibility);
     hidden.forEach((n) => (n.style.visibility = "hidden"));
     try {
@@ -1728,27 +1910,37 @@
       await video.play();
       await new Promise((res) => setTimeout(res, 250)); // let the hidden UI leave the frame
       const scale = video.videoWidth / innerWidth;
-      const boxes = moves.flatMap((e) => [viewRect(e.from.rect), e.clone.getBoundingClientRect()]);
-      const pad = 48;
-      let x0 = Math.max(0, Math.min(...boxes.map((b) => b.left)) - pad);
-      let y0 = Math.max(0, Math.min(...boxes.map((b) => b.top)) - pad);
-      const x1 = Math.min(innerWidth, Math.max(...boxes.map((b) => b.right)) + pad);
-      let y1 = Math.min(innerHeight, Math.max(...boxes.map((b) => b.bottom)) + pad);
-      /* A thin strip loses its context (and leaves no room for the arrow to bend): keep at least 200px tall. */
-      const minH = Math.min(200, innerHeight);
-      if (y1 - y0 < minH) {
-        const grow = minH - (y1 - y0);
-        y0 = Math.max(0, y0 - grow / 2);
-        y1 = Math.min(innerHeight, y0 + minH);
-        y0 = Math.max(0, y1 - minH);
-      }
-      x0 = Math.max(0, x0);
+      /* The whole visible page, so the agent sees each move in the context of everything around it. */
+      const [x0, y0, x1, y1] = [0, 0, innerWidth, innerHeight];
+      /* Instructions under the page, one line per move in its colour, so the image explains itself. */
+      const notes = moves
+        .sort((a, b) => a.n - b.n)
+        .map((e) => ({ color: e.color, text: `Move ${e.n}: move the ${e.colorName}-marked element to its new position.` })); // the picture shows which one
+      const FOOT = 20 + notes.length * 24 + 12;
       const canvas = document.createElement("canvas");
       canvas.width = Math.round((x1 - x0) * scale);
-      canvas.height = Math.round((y1 - y0) * scale);
+      const shotH = Math.round((y1 - y0) * scale);
+      canvas.height = shotH + Math.round(FOOT * scale);
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, x0 * scale, y0 * scale, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, x0 * scale, y0 * scale, canvas.width, shotH, 0, 0, canvas.width, shotH);
       ctx.scale(scale, scale);
+      {
+        const top = y1 - y0;
+        ctx.fillStyle = "#141414";
+        ctx.fillRect(0, top, x1 - x0, FOOT);
+        ctx.fillStyle = "rgba(255,255,255,.12)";
+        ctx.fillRect(0, top, x1 - x0, 1);
+        ctx.font = '500 14px ui-sans-serif, system-ui, -apple-system, sans-serif';
+        notes.forEach((note, k) => {
+          const y = top + 20 + k * 24;
+          ctx.fillStyle = note.color;
+          ctx.beginPath();
+          ctx.arc(26, y + 8, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,.92)";
+          ctx.fillText(note.text, 40, y + 13);
+        });
+      }
       const W = x1 - x0;
       const H = y1 - y0;
 
@@ -1774,14 +1966,44 @@
         ctx.fillText(text, px0 + 5, py0 + 12);
       };
 
+      /* Where each element was: a dashed, hatched box in its colour, drawn into the image whatever tool is on. */
+      for (const e of moves) {
+        const a = viewRect(e.from.rect);
+        const [x, y, w, h] = [a.left - x0, a.top - y0, a.width, a.height];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.strokeStyle = `${e.color}55`;
+        ctx.lineWidth = 2;
+        for (let d = -h; d < w; d += 7) {
+          ctx.beginPath();
+          ctx.moveTo(x + d, y + h);
+          ctx.lineTo(x + d + h, y);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5);
+        ctx.setLineDash([]);
+      }
+
       for (const e of moves) {
         const a = viewRect(e.from.rect);
         const b = e.clone.getBoundingClientRect();
         const [acx, acy] = [a.left + a.width / 2 - x0, a.top + a.height / 2 - y0];
         const [bcx, bcy] = [b.left + b.width / 2 - x0, b.top + b.height / 2 - y0];
-        const [ax, ay] = edge(a, bcx, bcy);
-        const [bx, by] = edge(b, acx, acy);
-        /* Bend the arrow off the content, toward whichever side of the crop has more room. */
+        /* Edge to edge when the boxes sit apart. When they overlap (a big element nudged a little), each
+           centre lies inside the other box and edge() would hand back the wrong ends, flipping the arrow:
+           then go centre to centre, old spot to new. */
+        /* Edge to edge only when the boxes sit apart. When they touch or overlap at all, edge to edge would run
+           backwards (from the old box's far side to the new box's near side): go centre to centre, old to new. */
+        const overlap = a.left <= b.right && b.left <= a.right && a.top <= b.bottom && b.top <= a.bottom;
+        const [ax, ay] = overlap ? [acx, acy] : edge(a, bcx, bcy);
+        const [bx, by] = overlap ? [bcx, bcy] : edge(b, acx, acy);
+        /* Bend the arrow off the content, toward whichever side of the page has more room. */
         const len = Math.hypot(bx - ax, by - ay) || 1;
         let nx = -(by - ay) / len;
         let ny = (bx - ax) / len;
@@ -1833,18 +2055,28 @@
      with ↑ ↓ (⇧ 10, ⌥/⌘ 1px), or drag the field's label to scrub, like Figma. */
   const fieldProps = (f) => {
     if (f === "radius") return null;
+    if (f === "border") return BORDER_SIDES("width");
+    if (f === "fill") return ["background-color"];
+    if (f === "border-color") return BORDER_SIDES("color");
     if (f === "gap") return gapInfo(getComputedStyle(selected))?.props ?? [];
     return f.split(" ");
   };
 
   function readField(f) {
     if (f === "radius") return radiusLabel(selected, Math.round(currentRadius(selected)));
+    if (f === "fill") return hexOf(getComputedStyle(selected).backgroundColor);
+    if (f === "border-color") {
+      const cs = getComputedStyle(selected);
+      return cs.borderTopStyle === "none" || !px(cs, "border-top-width") ? "none" : hexOf(cs.borderTopColor);
+    }
     const cs = getComputedStyle(selected);
     const values = fieldProps(f).map((prop) => Math.round(px(cs, prop) * 10) / 10);
     return values.every((v) => v === values[0]) ? `${values[0] ?? ""}` : "Mixed";
   }
 
   function writeField(f, v) {
+    if (f === "fill" || f === "border-color") return setColor(selected, f, String(v));
+    if (f === "border") return setBorderWidth(selected, v);
     if (f === "radius") setRadius(selected, v);
     else setSpace(selected, fieldProps(f), v);
   }
@@ -1855,6 +2087,7 @@
     const f = input.closest(".f").dataset.f;
     const raw = input.value.trim().toLowerCase();
     if (!selected || raw === "" || raw === "mixed") return;
+    if (f === "fill" || f === "border-color") return raw !== readField(f) && writeField(f, raw.replace(/ at \d+%$/, ""));
     if (f === "radius" && (raw === "full" || raw === "f")) return writeField(f, Infinity);
     const v = parseFloat(raw);
     if (!Number.isNaN(v)) writeField(f, snap(v));
@@ -1891,7 +2124,14 @@
     }
     panel.querySelector('[data-sec="gap"]').hidden = !gapInfo(getComputedStyle(selected));
     const focused = root.activeElement;
-    for (const input of panel.querySelectorAll(".f input")) {
+    for (const f of panel.querySelectorAll(".f.c")) {
+      const cs = getComputedStyle(selected);
+      const color = f.dataset.f === "fill" ? cs.backgroundColor : readField("border-color") === "none" ? "transparent" : cs.borderTopColor;
+      f.querySelector(".sw").style.setProperty("--sw", color);
+      const hex = hexOf(color);
+      if (/^#[0-9a-f]{6}$/.test(hex) && root.activeElement !== f.querySelector("[type=color]")) f.querySelector("[type=color]").value = hex;
+    }
+    for (const input of panel.querySelectorAll(".f input:not([type=color])")) {
       if (input === focused) continue;
       const value = readField(input.closest(".f").dataset.f);
       if (value === "Mixed") {
@@ -1927,7 +2167,7 @@
       e.preventDefault();
       input.value = readField(f) === "Mixed" ? "" : readField(f);
       input.blur();
-    } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && selected) {
+    } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && selected && !input.closest(".c")) {
       e.preventDefault();
       writeField(f, stepValue(fieldNow(f), e.key === "ArrowUp" ? 1 : -1, e));
       input.value = readField(f);
@@ -1939,6 +2179,10 @@
     if (input && selected) applyFieldInput(input);
   });
   panel.addEventListener("focusin", (e) => e.target.select?.());
+  panel.addEventListener("input", (e) => {
+    if (e.target.type !== "color" || !selected) return;
+    writeField(e.target.closest(".f").dataset.f, e.target.value);
+  });
 
   /* Scrub: drag a field's label sideways. 1px of mouse is 1px of value, snapped to the grid unless ⌥/⌘. */
   panel.addEventListener("pointerdown", (e) => {
@@ -2116,7 +2360,7 @@
 
   /* ================= shared: markers, revert, prompt, copy ================= */
 
-  const mark = (el) => el.toggleAttribute("data-ptk-edited", textEdits.has(el) || radiusEdits.has(el) || spaceEdits.has(el) || moveEdits.has(el));
+  const mark = (el) => el.toggleAttribute("data-ptk-edited", textEdits.has(el) || radiusEdits.has(el) || spaceEdits.has(el) || styleEdits.has(el) || moveEdits.has(el) || removeEdits.has(el));
 
   function revertAll() {
     if (editing) commit(editing);
@@ -2125,6 +2369,12 @@
     for (const [el, e] of radiusEdits) el.style.borderRadius = e.inline;
     for (const [el, e] of moveEdits) unmove(el, e);
     for (const [el, e] of removeEdits) el.style.display = e.display;
+    for (const [el, e] of styleEdits) {
+      for (const [prop, pe] of e.props) {
+        if (pe.inline) el.style.setProperty(prop, pe.inline);
+        else el.style.removeProperty(prop);
+      }
+    }
     if (composing) closeNote();
     for (const [el, e] of spaceEdits) {
       for (const [prop, pe] of e.props) {
@@ -2139,12 +2389,13 @@
   }
 
   function clearEdits() {
-    const els = [...textEdits.keys(), ...radiusEdits.keys(), ...spaceEdits.keys(), ...moveEdits.keys(), ...removeEdits.keys()];
+    const els = [...textEdits.keys(), ...radiusEdits.keys(), ...spaceEdits.keys(), ...styleEdits.keys(), ...moveEdits.keys(), ...removeEdits.keys()];
     textEdits.clear();
     radiusEdits.clear();
     spaceEdits.clear();
     moveEdits.clear();
     removeEdits.clear();
+    styleEdits.clear();
     comments.length = 0;
     paintPins();
     els.forEach(mark);
@@ -2270,6 +2521,30 @@
       sections.push(`Spacing\n\n${list.join("\n\n")}`);
       how.push(SHARED_NOTE, tokenNote());
     }
+    if (styleEdits.size) {
+      const change = (prop, pe) => {
+        const [from, to] = [shownStyle(prop, pe.before), shownStyle(prop, pe.after)];
+        return from === to ? `${prop}: ${to}` : `${prop}: ${from} → ${to}`; // set on purpose, same as it computed
+      };
+      const list = [...styleEdits.entries()].map(([el, e]) => {
+        const lines = [];
+        const done = new Set();
+        /* Four border sides changed together read as one line per property. */
+        for (const what of ["width", "style", "color"]) {
+          const sides = BORDER_SIDES(what).map((p) => e.props.get(p));
+          if (sides.every(Boolean) && sides.every((x) => x.after === sides[0].after && x.before === sides[0].before)) {
+            const prop = `border-${what}`;
+            lines.push(change(prop, sides[0]));
+            BORDER_SIDES(what).forEach((p) => done.add(p));
+          }
+        }
+        for (const [prop, pe] of e.props) if (!done.has(prop)) lines.push(change(prop, pe));
+        const by = setBy(el, [...e.props.keys(), "background", "border"]);
+        return `${++i}. <${e.tag}> ${where(e)}\n${lines.map((l) => `   ${l}`).join("\n")}${by ? `\n${by}` : ""}`;
+      });
+      sections.push(`Fill and border\n\n${list.join("\n\n")}`);
+      how.push(SHARED_NOTE, tokenNote());
+    }
     const flows = [...moveEdits.entries()].filter(([, e]) => e.mode === "flow" && e.to);
     const absolutes = [...moveEdits.entries()].filter(([, e]) => e.mode === "absolute");
     if (flows.length) {
@@ -2314,6 +2589,7 @@
   }
 
   let shotAttached = false;
+  let lastCopy = "prompt"; // which copy the "done" status belongs to: the prompt or Add to Figma
 
   async function copy() {
     if (editing) commit(editing);
@@ -2323,7 +2599,8 @@
     if (!n) return;
     /* Screenshot first, as its own clipboard step: chat inputs paste an image or text, rarely both. */
     let shotFailed = false;
-    if (moveScreenshot && !pendingPrompt && [...moveEdits.values()].some((e) => e.mode === "absolute")) {
+    /* Absolute moves always come with a screenshot: the picture is what makes a free position clear. */
+    if (!pendingPrompt && [...moveEdits.values()].some((e) => e.mode === "absolute")) {
       status = "done";
       message = "Choose this tab to grab the screenshot";
       render();
@@ -2343,6 +2620,7 @@
     try {
       const text = prompt();
       await navigator.clipboard.writeText(text);
+      lastCopy = "prompt";
       /* Lets a page see what was copied (the test page records each prompt). */
       window.dispatchEvent(new CustomEvent("design-toolkit:copy", { detail: { prompt: text, edits: n } }));
       pendingPrompt = false;
@@ -2396,6 +2674,25 @@
     if (drag?.kind !== "move") return;
     drag = null;
     paint();
+  }, true);
+  /* Double-click text with Move, Radius or Spacing on: switch to Text and start typing where you clicked, like Figma. */
+  window.addEventListener("dblclick", (e) => {
+    if (!["move", "radius", "spacing"].includes(tool) || fromToolbar(e)) return;
+    const el = pickText(e.target);
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const at = caretAt(e.clientX, e.clientY);
+    setTool("text");
+    begin(el);
+    el.focus({ preventScroll: true });
+    if (at && el.contains(at.node)) {
+      const sel = getSelection();
+      sel.removeAllRanges();
+      const range = document.createRange();
+      range.setStart(at.node, at.offset);
+      sel.addRange(range);
+    }
   }, true);
   ["mousedown", "mouseup", "pointerup", "click", "auxclick", "dblclick", "submit"].forEach((t) => window.addEventListener(t, swallow, true));
 

@@ -42,7 +42,7 @@ to your dev page.
 
 | Key | Tool |
 | --- | --- |
-| `T` | **Text**: click any copy and type, `↵` or `Esc` to leave the field |
+| `T` | **Text**: click any copy and type, `↵` or `Esc` to leave the field. Double-click text with Move, Radius or Spacing on to jump straight into Text |
 | `R` | **Radius**: click any box, drag the corner handle, `↑` `↓` to step, `↵` or click the value to type |
 | `S` | **Spacing**: click any element, drag its padding (green), margin (orange) or gap (purple) bands, click a number to type |
 | `V` | **Move**: drag an element into any container (flow), or anywhere with **Absolute** picked from the corner wedge on Move; arrows reorder (flow) or nudge (absolute) |
@@ -60,8 +60,9 @@ Everything snaps to a 2px grid, typed values included (13 becomes 14).
 | `↵` / `⇧↵` / `⇥` / `⇧⇥` (Spacing) | select first child / parent / next / previous sibling |
 | `Esc` | deselect, then leave the tool |
 
-**Panel.** While Radius or Spacing has a selection, a panel on the right shows the element and its
-Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner button) and Margin.
+**Panel.** While Radius or Spacing has a selection, a panel shows the element and its
+Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner button), Margin, Fill and Border
+(width and colour; click a swatch for the colour picker, or type hex, rgba or none).
 Type a value, step with `↑` `↓`, `Tab` between fields, or drag a field's label to scrub, like Figma's
 design sidebar.
 
@@ -70,7 +71,11 @@ nearest one. Off: exact values, even if no token exists yet. Remembered per brow
 
 **Appearance** (same menu). Dark (default), Light, or Auto to follow the system. Remembered per browser.
 
-**Move the toolbar** by dragging it from anywhere, buttons included (a press that barely moves is still a click); double-click its frame to put it back. **×** collapses it to a **+** that keeps the edit count; click it (or press a tool key) to open it again. Both are remembered per browser.
+**Add to Figma.** With Move and a selection, an **Add to Figma** button appears above the toolbar. It copies a prompt that tells your agent to capture that element into Figma with the Figma MCP server (generate_figma_design), as editable layers.
+
+**Options.** Tools with a corner wedge (Move, Copy prompt) open their options from the wedge, a right-click, or a long press.
+
+**Move the toolbar** by dragging it from anywhere, buttons included (a press that barely moves is still a click); double-click its frame to put it back. **×** collapses it to a **+**; click it (or press a tool key) to open it again. Both are remembered per browser.
 
 **Move.** Flow is the default: drag an element and a blue line shows the slot it will take in the
 container under your pointer, like Figma's auto layout. On drop the page reflows as if the change were
@@ -80,8 +85,8 @@ it one slot. Claude is told to change the JSX order or parent, never to position
 
 Turn on **Absolute** to drag anywhere instead. The element floats above everything, a dashed
 placeholder keeps its old spot, and the prompt asks for position: absolute inside the container it
-landed in, with offsets. With **Screenshot** on, Copy prompt first grabs this tab (Chrome asks you to
-share it), crops to where things moved from and to, and copies that image. Each absolute move gets its own
+landed in, with offsets. Copy prompt always takes a screenshot of the whole visible page first (Chrome
+asks you to share the tab), adds a line per move underneath ("Move 1: move the orange-marked element to its new position.") and copies that image. Each absolute move gets its own
 colour (orange, pink, green, ...): its placeholder and outline use it on the page, and in the screenshot a
 matching arrow joins "Move N · from" to "Move N". The prompt names each move by number and colour. Paste it, then
 ⌘↵ again for the text. Screen capture does not work in embedded previews such as the Claude app's

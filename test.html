@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Test drive · Design toolkit</title>
     <meta name="description" content="A guided test of design-toolkit: one realistic task per tool, with the prompt each one produces." />
+    <script>
+      /* Follow the toolkit's Appearance setting before first paint, so light never flashes dark. */
+      try {
+        const t = localStorage.getItem("ptk-theme");
+        if (t === "light" || t === "auto") document.documentElement.dataset.theme = t;
+      } catch {}
+      addEventListener("design-toolkit:theme", (e) => (document.documentElement.dataset.theme = e.detail.theme));
+    </script>
     <style>
       @font-face {
         font-family: "Camera Plain";
@@ -12,7 +20,25 @@
         font-weight: 100 900;
         font-display: swap;
       }
+      /* Dark by default, like the landing page. The toolkit's Appearance setting (Dark, Light, Auto) sets data-theme. */
       :root {
+        color-scheme: dark;
+        --bg: #141414;
+        --ink: rgba(255, 255, 255, 0.9);
+        --ink-2: rgba(255, 255, 255, 0.55);
+        --ink-3: rgba(255, 255, 255, 0.4);
+        --surface: rgba(255, 255, 255, 0.05);
+        --surface-2: rgba(255, 255, 255, 0.1);
+        --line: rgba(255, 255, 255, 0.08);
+        --card: #1c1c1c;
+        --accent: #0a84ff;
+        --good: #30d158;
+        --warn: #ff9f0a;
+        --bad: #ff375f;
+        --ease: cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      :root[data-theme="light"] {
+        color-scheme: light;
         --bg: #ffffff;
         --ink: rgba(20, 20, 20, 0.9);
         --ink-2: rgba(20, 20, 20, 0.6);
@@ -21,22 +47,18 @@
         --surface-2: rgba(20, 20, 20, 0.08);
         --line: rgba(20, 20, 20, 0.08);
         --card: #ffffff;
-        --accent: #0a84ff;
-        --good: #30d158;
-        --warn: #ff9f0a;
-        --bad: #ff375f;
-        --ease: cubic-bezier(0.23, 1, 0.32, 1);
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #141414;
-          --ink: rgba(255, 255, 255, 0.9);
-          --ink-2: rgba(255, 255, 255, 0.55);
-          --ink-3: rgba(255, 255, 255, 0.4);
-          --surface: rgba(255, 255, 255, 0.05);
-          --surface-2: rgba(255, 255, 255, 0.1);
-          --line: rgba(255, 255, 255, 0.08);
-          --card: #1c1c1c;
+      @media (prefers-color-scheme: light) {
+        :root[data-theme="auto"] {
+          color-scheme: light;
+          --bg: #ffffff;
+          --ink: rgba(20, 20, 20, 0.9);
+          --ink-2: rgba(20, 20, 20, 0.6);
+          --ink-3: rgba(20, 20, 20, 0.4);
+          --surface: rgba(20, 20, 20, 0.04);
+          --surface-2: rgba(20, 20, 20, 0.08);
+          --line: rgba(20, 20, 20, 0.08);
+          --card: #ffffff;
         }
       }
       * { box-sizing: border-box; }
@@ -45,7 +67,7 @@
         margin: 0;
         background: var(--bg);
         color: var(--ink);
-        font: 400 15px/1.55 "Camera Plain", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font: 400 15px/1.3 "Camera Plain", ui-sans-serif, system-ui, -apple-system, sans-serif;
         letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased;
       }
@@ -55,37 +77,37 @@
         background: var(--surface-2); color: var(--ink); font-variant-numeric: tabular-nums;
       }
 
-      /* ---------- chrome (ignored by the toolkit) ---------- */
+      /* ---------- chrome (ignored by the toolkit), matching the landing page ---------- */
       .top {
-        position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 24px;
-        background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
+        position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 12px; background: linear-gradient(var(--bg) 40%, transparent);
       }
-      .back { color: var(--ink-2); text-decoration: none; font-size: 13px; }
-      .back:hover { color: var(--ink); }
-      .name { font-weight: 520; }
-      .dots { display: flex; gap: 6px; margin-left: auto; }
-      .dot {
-        all: unset; cursor: pointer; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px;
-        background: var(--surface); color: var(--ink-3); font-size: 12px; font-weight: 520; font-variant-numeric: tabular-nums;
-        transition: background-color .2s var(--ease), color .2s var(--ease);
-      }
-      .dot:hover { background: var(--surface-2); color: var(--ink); }
-      .dot[aria-current="step"] { background: var(--ink); color: var(--bg); }
-      .dot:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .top-start { display: flex; align-items: center; gap: 10px; }
+      .name { font-size: 18px; font-weight: 520; letter-spacing: -0.01em; }
+      .step { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
-      .layout { display: grid; gap: 16px; max-width: 760px; margin: 0 auto; padding: 32px 24px 160px; }
-      .nav { display: flex; gap: 8px; flex-wrap: wrap; }
-      .btn {
-        all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; height: 36px; padding: 0 14px;
-        border-radius: 10px; background: var(--surface-2); font-size: 14px; font-weight: 460; transition: opacity .2s var(--ease), transform .16s var(--ease);
+      .pill {
+        all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 32px; padding: 0 12px;
+        border-radius: 1000px; background: var(--surface-2); color: var(--ink); font-weight: 460; line-height: 1; cursor: pointer; white-space: nowrap;
+        transition: background-color .2s var(--ease), opacity .2s var(--ease), transform .16s var(--ease);
       }
-      .btn:hover { opacity: .8; }
-      .btn:active { transform: scale(.97); }
-      .btn.primary { background: var(--ink); color: var(--bg); margin-left: auto; }
-      .btn[disabled] { opacity: .35; pointer-events: none; }
+      .pill:hover { background: color-mix(in srgb, var(--ink) 16%, transparent); }
+      .pill:active { transform: scale(.97); }
+      .pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .pill.solid { background: var(--ink); color: var(--bg); }
+      .pill.solid:hover { opacity: .88; }
+      .pill.icon { width: 24px; height: 24px; padding: 0; }
+      .pill.icon svg { width: 14px; height: 14px; }
+      .pill[disabled] { opacity: .35; pointer-events: none; }
+
+      /* The stage sits in the middle of the window; Back and Next are pinned to the bottom corners. */
+      .layout { display: grid; place-content: center; min-height: calc(100vh - 56px); padding: 24px 12px 120px; }
+      .stage { width: min(600px, calc(100vw - 24px)); }
+      .nav { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 5; display: flex; justify-content: space-between; pointer-events: none; }
+      .nav .pill { pointer-events: auto; }
 
       /* ---------- the stage: sample product UI, this is what you edit ---------- */
-      .stage { min-height: 560px; padding: 40px; border-radius: 24px; background: var(--surface); display: grid; place-items: center; }
+      .stage { min-height: 520px; padding: 28px; border-radius: 20px; background: var(--surface); display: grid; place-items: center; }
       .stage > [data-step] { width: 100%; max-width: 560px; }
       .stage > [hidden] { display: none; }
 
@@ -194,23 +216,22 @@
       .empty-link { margin-top: 20px; color: var(--ink-2); font-size: 13px; }
       .empty-cta { margin-top: 12px; height: 40px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: var(--bg); font-weight: 520; }
 
-      @media (max-width: 960px) {
-        .stage { padding: 20px; min-height: 0; }
+      @media (max-width: 720px) {
+        .stage { padding: 16px; min-height: 0; }
       }
       @media (max-width: 520px) {
-        .top { padding: 10px 16px; }
-        .layout { padding: 20px 16px 160px; }
-        .name { display: none; }
         .products { grid-template-columns: 1fr; }
       }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
   </head>
   <body>
-    <nav class="top" data-toolkit-ignore aria-label="Test steps">
-      <a class="back" href="./">← Design toolkit</a>
-      <span class="name">Test drive</span>
-      <div class="dots" id="dots"></div>
+    <nav class="top" data-toolkit-ignore aria-label="Test drive">
+      <div class="top-start">
+        <a class="pill icon" href="./" aria-label="Back to Design toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5.5M11 6l-6 6 6 6"/></svg></a>
+        <span class="name">Test drive</span>
+      </div>
+      <span class="step" id="step-count"></span>
     </nav>
 
     <div class="layout">
@@ -347,9 +368,9 @@
         </section>
       </main>
 
-      <div class="nav" data-toolkit-ignore>
-        <button class="btn" type="button" id="prev">Back</button>
-        <button class="btn primary" type="button" id="next">Next</button>
+      <div class="nav">
+        <button class="pill" type="button" id="prev">Back</button>
+        <button class="pill solid" type="button" id="next">Next</button>
       </div>
     </div>
 
@@ -525,27 +546,19 @@
       const result = (n) => (state.results[n] ??= { prompts: [] });
 
       const $ = (id) => document.getElementById(id);
-      const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
       const fromHash = () => {
         const n = Number((location.hash.match(/step-(\d+)/) || [])[1]);
         return n >= 1 && n <= STEPS.length ? n : null;
       };
-
-      function renderDots() {
-        $("dots").innerHTML = STEPS.map((s, i) => {
-          const n = i + 1;
-          return `<button class="dot" type="button" data-n="${n}" aria-label="Step ${n}: ${esc(s.title)}"${n === state.step ? ' aria-current="step"' : ""}>${n}</button>`;
-        }).join("");
-      }
 
       function render() {
         const n = state.step;
         const s = STEPS[n - 1];
         document.querySelectorAll("#stage > [data-step]").forEach((el) => (el.hidden = Number(el.dataset.step) !== n));
         document.title = `${s.title} · Test drive`;
+        $("step-count").textContent = `${n} / ${STEPS.length}`;
         $("prev").disabled = n === 1;
         $("next").disabled = n === STEPS.length;
-        renderDots();
         history.replaceState(null, "", `#step-${n}`);
       }
 
@@ -556,10 +569,6 @@
         window.scrollTo({ top: 0 });
       };
 
-      $("dots").addEventListener("click", (e) => {
-        const b = e.target.closest("[data-n]");
-        if (b) go(Number(b.dataset.n));
-      });
       $("prev").addEventListener("click", () => go(state.step - 1));
       $("next").addEventListener("click", () => go(state.step + 1));
 
