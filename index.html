@@ -47,6 +47,9 @@
         position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center;
         padding: var(--gutter); background: linear-gradient(var(--bg) 40%, transparent);
       }
+      .brand { display: flex; align-items: baseline; gap: 10px; }
+      .ver { color: var(--ink-4); font-size: 13px; font-variant-numeric: tabular-nums; transition: color 0.2s var(--ease); }
+      .ver:hover { color: var(--ink-8); }
       .wordmark { font-size: 18px; font-weight: 520; letter-spacing: -0.01em; }
 
       /* ---------- pills ---------- */
@@ -115,7 +118,7 @@
   </head>
   <body>
     <header>
-      <a class="wordmark" href="./">Design toolkit</a>
+      <span class="brand"><a class="wordmark" href="./">Design toolkit</a><a class="ver" id="ver" href="https://www.npmjs.com/package/design-toolkit" hidden></a></span>
       <a class="pill sm" href="https://github.com/davidexo/design-toolkit">GitHub</a>
     </header>
 
@@ -153,6 +156,22 @@
 1. Install it with the package manager this project already uses (check the lockfile).
 2. In a React app (Next.js, Vite, Remix...), render <DesignToolkit /> from "design-toolkit/react" once in the root layout. Otherwise, import "design-toolkit" in development only.
 3. Change nothing else. Then start or reload the dev server and confirm the toolbar shows at the bottom of the page.`;
+      /* Latest release, read live from npm: "v0.3.1 · 2 hours ago", the exact date on hover. Hidden if npm is unreachable. */
+      (async () => {
+        try {
+          const pkg = await (await fetch("https://registry.npmjs.org/design-toolkit")).json();
+          const v = pkg["dist-tags"].latest;
+          const when = new Date(pkg.time[v]);
+          const s = (when - Date.now()) / 1000;
+          const units = [["year", 31557600], ["month", 2629800], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60], ["second", 1]];
+          const [unit, size] = units.find(([, size]) => Math.abs(s) >= size) || ["second", 1];
+          const ver = document.getElementById("ver");
+          ver.textContent = `v${v} · ${new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(Math.round(s / size), unit)}`;
+          ver.title = `Published ${when.toLocaleString("en", { dateStyle: "long", timeStyle: "short" })}`;
+          ver.hidden = false;
+        } catch {}
+      })();
+
       /* Gap bands sit between the hero's rows, measured so they follow wrapping and resizing. */
       const hero = document.getElementById("hero");
       const spec = hero.querySelector(".spec");
