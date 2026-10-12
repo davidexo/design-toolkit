@@ -351,6 +351,28 @@
       .panel .addfig:hover { opacity: .88; }
       .panel .addfig:active { transform: scale(.98); }
       .panel .addfig:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
+      /* Layers: a tree of the page in the top-left corner while Select has something selected, like Figma's. */
+      .layers {
+        position: fixed; z-index: 2147483646; top: 12px; left: 12px; width: 240px; max-height: calc(100vh - 120px); display: none; flex-direction: column;
+        border-radius: 12px; background: rgb(var(--elev-rgb)); color: rgba(var(--ink-rgb), .9);
+        box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1), 0 10px 40px rgba(var(--shadow-rgb), .25);
+        font: 460 12px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em; -webkit-font-smoothing: antialiased; user-select: none;
+      }
+      .layers .lh { padding: 12px 12px 8px; font-weight: 520; }
+      .layers .lt { overflow: auto; overscroll-behavior: contain; padding: 0 6px 8px; }
+      .layers .row { display: flex; align-items: center; gap: 4px; height: 26px; padding-right: 8px; border-radius: 6px; cursor: default; white-space: nowrap; }
+      .layers .row:hover { background: rgba(var(--ink-rgb), .06); }
+      .layers .row[aria-selected="true"] { background: rgba(10, 132, 255, .2); color: rgb(var(--ink-rgb)); }
+      /* Neighbouring selected rows read as one block, like Figma's; the selection's parent gets a soft fill. */
+      .layers .row[aria-selected="true"].mid { border-radius: 0; }
+      .layers .row[aria-selected="true"].first:not(.last) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+      .layers .row[aria-selected="true"].last:not(.first) { border-top-left-radius: 0; border-top-right-radius: 0; }
+      .layers .row.ctx { background: rgba(var(--ink-rgb), .06); }
+      .layers .chev { all: unset; display: grid; place-items: center; flex: none; width: 16px; height: 16px; color: rgba(var(--ink-rgb), .45); cursor: pointer; transition: rotate .15s; }
+      .layers .chev[aria-expanded="true"] { rotate: 90deg; }
+      .layers .chev[hidden] { visibility: hidden; display: grid; }
+      .layers .ico { flex: none; width: 14px; height: 14px; color: rgba(var(--ink-rgb), .5); }
+      .layers .nm { overflow: hidden; text-overflow: ellipsis; }
       .panel .hint { margin: 0; padding: 12px; color: rgba(var(--ink-rgb), .5); line-height: 1.4; }
       .panel[data-empty] section, .panel:not([data-empty]) .hint { display: none; }
       .panel header { padding: 10px 12px 8px; border-bottom: 1px solid rgba(var(--ink-rgb), .08); display: grid; gap: 4px; }
@@ -549,6 +571,7 @@
   const toast = root.querySelector(".toast");
   const hoverBox = root.querySelector(".box.hover");
   const selBox = root.querySelector(".box.sel");
+  const extraBoxes = []; // one outline per extra selected element
   const handle = root.querySelector(".handle");
   const tag = root.querySelector(".tag");
   const dropBox = root.querySelector(".box.drop");
@@ -570,6 +593,7 @@
     comment: glyph("M12 2.5c5.25 0 9.5 3.64 9.5 8.25S17.25 19 12 19c-.93 0-1.83-.11-2.68-.33l-4.1 2.36a1.2 1.2 0 0 1-1.77-1.27l.6-3.18C2.95 15.08 2.5 12.96 2.5 10.75 2.5 6.14 6.75 2.5 12 2.5"),
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="3"/><path d="M15.5 8.5V6.5a3 3 0 0 0-3-3h-6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h2"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    arrows: glyph("M12 1.8l3.6 3.6h-2.4v5.4h5.4V8.4l3.6 3.6-3.6 3.6v-2.4h-5.4v5.4h2.4L12 22.2l-3.6-3.6h2.4v-5.4H5.4v2.4L1.8 12l3.6-3.6v2.4h5.4V5.4H8.4z"),
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   };
 
@@ -580,7 +604,8 @@
   const MOD = isMac ? "⌘" : "Ctrl";
   /* Move first, like the canvas-toolbar; its slot carries the corner wedge for move options. */
   const TOOLS = [
-    ["move", "Move", "V"],
+    ["move", "Select", "V"],
+    ["absolute", "Move", "M"],
     ["text", "Text", "T"],
     ["spacing", "Spacing", "S"],
     ["comment", "Comment", "C"],
@@ -594,13 +619,9 @@
   let menuOpen = null; // null | "move" | "copy"
 
   const toolButton = (id, label, key) =>
-    `<button class="tool" data-tool="${id}" aria-pressed="false" aria-label="${label}" aria-keyshortcuts="${key}" data-tip="${label}" data-key="${key}">${ICON[id === "text" ? "type" : id]}</button>`;
+    `<button class="tool" data-tool="${id}" aria-pressed="false" aria-label="${label}" aria-keyshortcuts="${key}" data-tip="${label}" data-key="${key}">${ICON[{ text: "type", absolute: "arrows" }[id] ?? id]}</button>`;
   bar.innerHTML =
-    TOOLS.map(([id, label, key]) =>
-      id === "move"
-        ? `<span class="slot">${toolButton(id, label, key)}<button class="notch" data-menu="move" aria-haspopup="menu" aria-expanded="false" aria-label="Move options" data-tip="Move options"></button></span>`
-        : toolButton(id, label, key),
-    ).join("") +
+    TOOLS.map(([id, label, key]) => toolButton(id, label, key)).join("") +
     `<span class="split" data-needs-edits></span>
     <span class="slot" data-needs-edits><button class="copy" aria-disabled="true" aria-label="Copy prompt">${ICON.copy}<span class="badge" hidden></span></button><button class="notch" data-menu="copy" aria-haspopup="menu" aria-expanded="false" aria-label="Prompt options" data-tip="Prompt options"></button></span>
     <button class="tool close" aria-label="Collapse toolbar" data-tip="Collapse">${ICON.close}</button>
@@ -611,7 +632,7 @@
   function render() {
     if (history.length) scheduleCheckpoint();
     const n = count();
-    bar.querySelectorAll(".tool").forEach((b) => b.setAttribute("aria-pressed", String(tool === b.dataset.tool)));
+    bar.querySelectorAll(".tool").forEach((b) => b.setAttribute("aria-pressed", String(toolName() === b.dataset.tool)));
     bar.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", String(menuOpen === b.dataset.menu)));
     copyButton.setAttribute("aria-disabled", String(n === 0));
     /* Copy prompt (and its divider) only appear once there is something to copy. */
@@ -700,7 +721,7 @@
       setCollapsed(false);
       return tool || setTool("move"); // opening the toolkit starts on Move
     }
-    if (b.dataset.tool) setTool(tool === b.dataset.tool ? null : b.dataset.tool);
+    if (b.dataset.tool) setTool(toolName() === b.dataset.tool ? null : b.dataset.tool);
     else if (b.dataset.menu) setMenu(menuOpen === b.dataset.menu ? null : b.dataset.menu);
     else if (b.classList.contains("copy") && count()) copy();
   });
@@ -763,7 +784,13 @@
   });
   bar.addEventListener("pointerleave", () => (tip.style.display = "none"));
 
+  /* Select (flow) and Move (absolute) share the move engine: the button names which mode it runs in. */
+  const toolName = () => (tool === "move" && moveAbsolute ? "absolute" : tool);
   function setTool(next) {
+    if (next === "absolute" || next === "move") {
+      moveAbsolute = next === "absolute";
+      next = "move";
+    }
     if (next && collapsed) setCollapsed(false);
     if (editing) commit(editing);
     if (composing) closeNote();
@@ -1045,7 +1072,37 @@
   const pickFor = (node) =>
     pick(node, tool === "radius" ? drawsBox : tool === "move" || tool === "comment" ? (el) => drawsBox(el) || hasOwnText(el) || MEDIA.has(el.tagName) : (el) => hasSpace(el) || drawsBox(el));
 
+  /* Multi-select: selected is the primary (the panel reads it), extra holds the rest. Edits from the panel, the
+     corner handle and Delete apply to all of them. */
+  let extra = [];
+  const selectedAll = () => (selected ? [...extra.filter((x) => x !== selected && x.isConnected), selected] : []);
+  function prepare(el) {
+    rememberPristine(el);
+    if (!originalRadius.has(el)) originalRadius.set(el, getComputedStyle(el).borderRadius);
+    if (!originalStyle.has(el)) {
+      const cs = getComputedStyle(el);
+      originalStyle.set(el, Object.fromEntries(STYLE_PROPS.map((p) => [p, cs.getPropertyValue(p)])));
+    }
+    if (!originalSpace.has(el)) {
+      const cs = getComputedStyle(el);
+      originalSpace.set(el, Object.fromEntries(SPACE_PROPS.map((p) => [p, cs.getPropertyValue(p)])));
+    }
+  }
+  function selectMany(list) {
+    const els = [...new Set(list.map((el) => inflowOwner.get(el) ?? el).filter(Boolean))];
+    select(els.at(-1) ?? null);
+    extra = els.slice(0, -1);
+    extra.forEach(prepare);
+    paint();
+  }
+  function toggleSelect(el) {
+    if (!el) return;
+    const all = selectedAll();
+    selectMany(all.includes(el) ? all.filter((x) => x !== el) : [...all, el]);
+  }
+
   function select(el) {
+    extra = [];
     el = (el && inflowOwner.get(el)) ?? el;
     if (el) rememberPristine(el);
     if (field && el !== selected) closeField(true);
@@ -1090,11 +1147,19 @@
     const on = boxTool();
     place(hoverBox, on && hovered !== selected ? hovered : null);
     const r = place(selBox, tool ? selected : null);
+    const others = tool ? selectedAll().slice(0, -1) : [];
+    while (extraBoxes.length < others.length) {
+      const b = selBox.cloneNode();
+      root.insertBefore(b, selBox);
+      extraBoxes.push(b);
+    }
+    extraBoxes.forEach((b, i) => place(b, others[i] ?? null));
     /* Move carries the radius handle (Radius is no longer a separate tool), hidden while the element is being moved. */
     paintRadius((tool === "move" && drag?.kind !== "move" && drag?.kind !== "flow") || tool === "radius" ? r : null);
     paintSpacing(tool === "spacing" ? r : null);
     paintPanel();
     paintMove(tool === "move" ? r : null);
+    paintLayers();
   }
 
   /* Pages scroll and animate under the overlay, so it follows every frame while a box tool is on. */
@@ -1210,7 +1275,8 @@
     if (drag?.kind !== "radius" || !selected) return;
     /* Dragging toward the middle of the box rounds the corner more, like Figma. */
     const delta = (e.clientX - drag.x + (e.clientY - drag.y)) / 2;
-    setRadius(selected, snap(drag.start + delta, e.altKey || e.metaKey || e.ctrlKey));
+    const v = snap(drag.start + delta, e.altKey || e.metaKey || e.ctrlKey);
+    for (const el of selectedAll()) setRadius(el, v);
   });
   const endDrag = () => {
     drag = null;
@@ -1496,7 +1562,6 @@
                      the prompt asks for position: absolute there (with an annotated screenshot). */
   let moveAbsolute = false;
   try {
-    moveAbsolute = localStorage.getItem("ptk-move") === "absolute";
   } catch {}
   let pendingPrompt = false; // a screenshot went to the clipboard; the next ⌘↵ copies the text
 
@@ -1844,6 +1909,166 @@
   const insertLine = Object.assign(document.createElement("div"), { className: "insert" });
   root.append(insertLine);
 
+  /* ---------- Layers: the page as a tree, top left, while Select has a selection ---------- */
+
+  const layers = document.createElement("div");
+  layers.className = "layers";
+  layers.innerHTML = `<div class="lh">Layers</div><div class="lt" role="tree" aria-label="Layers"></div>`;
+  root.append(layers);
+  const layerTree = layers.querySelector(".lt");
+  let expanded = new WeakSet();
+  let layerAnchor = null; // where a ⇧-click range starts
+  const rowEl = new Map(); // row -> element
+  let layersFor = null;
+  const SKIP_LAYER = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|BR|WBR)$/;
+  const layerKids = (el) =>
+    [...el.children].filter((c) => c !== host && c !== cloneLayer && !SKIP_LAYER.test(c.tagName) && !c.hasAttribute("data-ptk-inflow") && c.getClientRects().length);
+  const LAYER_ICON = {
+    frame: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v18M16 3v18M3 8h18M3 16h18"/></svg>',
+    text: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>',
+    media: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>',
+    box: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>',
+    column: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="6" rx="2"/><rect x="4" y="14" width="10" height="6" rx="2"/></svg>',
+    row: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="16" rx="2"/><rect x="14" y="4" width="6" height="10" rx="2"/></svg>',
+    grid: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>',
+  };
+  const chevron = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+  function layerLabel(el) {
+    const cls = [...el.classList].find((c) => !c.startsWith("ptk"));
+    if (cls) return cls.replace(/^[A-Za-z]+-module__[A-Za-z0-9_-]+__/, "");
+    const text = !layerKids(el).length && squash(el.innerText);
+    return text ? text.slice(0, 40) : el.tagName.toLowerCase();
+  }
+  function layerIcon(el) {
+    if (MEDIA.has(el.tagName) || el.tagName === "svg") return LAYER_ICON.media;
+    if (!layerKids(el).length) return hasOwnText(el) ? LAYER_ICON.text : LAYER_ICON.box;
+    const cs = getComputedStyle(el);
+    if (/grid/.test(cs.display)) return LAYER_ICON.grid;
+    if (/flex/.test(cs.display)) return cs.flexDirection.startsWith("column") ? LAYER_ICON.column : LAYER_ICON.row;
+    return LAYER_ICON.frame;
+  }
+
+  /* ---------- Figma's canvas selection for Select and Move ----------
+     A click picks at the current depth: the first click an outer container, then siblings of the selection.
+     Clicking the selection again goes one level deeper, so repeated clicks walk in. ⌘ goes straight to the
+     innermost element. ⇧↵ (parent) and ↵ (first child) still step by one. */
+  const layerish = (n) =>
+    n?.nodeType === 1 && n !== document.body && n !== document.documentElement && n !== host && !cloneLayer.contains(n) &&
+    !SKIP_LAYER.test(n.tagName) && !n.hasAttribute("data-ptk-inflow") && n.getClientRects().length > 0;
+  function chainAt(target) {
+    const out = [];
+    for (let n = target?.closest?.("svg")?.parentElement ?? target; n && n !== document.body; n = n.parentElement) if (layerish(n)) out.unshift(n);
+    return out;
+  }
+  /* Page-sized wrappers (a layout div, main) are clicked through, like the canvas behind Figma's top-level frames. */
+  const coversPage = (n) => {
+    const r = n.getBoundingClientRect();
+    return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.6;
+  };
+  function canvasPick(target, deep) {
+    const chain = chainAt(target);
+    if (!chain.length) return null;
+    if (deep) return chain[chain.length - 1];
+    let ctx = selected?.parentElement;
+    while (ctx && ctx !== document.body && !chain.includes(ctx)) ctx = ctx.parentElement;
+    if (ctx && ctx !== document.body) {
+      const i = chain.indexOf(ctx);
+      return chain[i + 1] ?? chain[i];
+    }
+    return chain.find((n) => !coversPage(n)) ?? chain[chain.length - 1];
+  }
+  /* One level deeper than the selection, toward the pointer. */
+  function deeperAt(target) {
+    const chain = chainAt(target);
+    const i = chain.indexOf(selected);
+    return i >= 0 ? chain[i + 1] ?? null : null;
+  }
+  let clickInto = null; // a press on the selection: if it ends without a drag, go one level deeper
+
+  function buildLayers() {
+    layerTree.innerHTML = "";
+    rowEl.clear();
+    /* Open the path down to the selection. */
+    for (const s of selectedAll()) for (let a = s.parentElement; a && a !== document.documentElement; a = a.parentElement) expanded.add(a);
+    const add = (el, depth) => {
+      const kids = el === selected ? layerKids(el) : layerKids(el);
+      const row = document.createElement("div");
+      row.className = "row";
+      row.setAttribute("role", "treeitem");
+      row.setAttribute("aria-selected", String(selectedAll().includes(el)));
+      row.style.paddingLeft = `${4 + depth * 12}px`;
+      const open = expanded.has(el);
+      row.innerHTML = `<button class="chev" type="button" aria-label="Expand" aria-expanded="${open}"${kids.length ? "" : " hidden"}>${chevron}</button>${layerIcon(el)}<span class="nm"></span>`;
+      row.querySelector(".nm").textContent = layerLabel(el);
+      layerTree.append(row);
+      rowEl.set(row, el);
+      if (open) kids.forEach((k) => add(k, depth + 1));
+    };
+    layerKids(document.body).forEach((k) => add(k, 0));
+    const sel = selectedAll();
+    const parents = new Set(sel.map((el) => el.parentElement));
+    const rows = [...rowEl.keys()];
+    rows.forEach((row, i) => {
+      const on = (r) => r?.getAttribute("aria-selected") === "true";
+      const isOn = on(row);
+      row.classList.toggle("first", isOn && !on(rows[i - 1]));
+      row.classList.toggle("last", isOn && !on(rows[i + 1]));
+      row.classList.toggle("mid", isOn && on(rows[i - 1]) && on(rows[i + 1]));
+      row.classList.toggle("ctx", !isOn && parents.has(rowEl.get(row)));
+    });
+    [...rowEl].find(([, el]) => el === selected)?.[0].scrollIntoView({ block: "nearest" });
+  }
+
+  function paintLayers() {
+    const show = tool === "move" && !moveAbsolute && !!selected?.isConnected;
+    layers.style.display = show ? "flex" : "none";
+    if (!show) return void (layersFor = null);
+    const key = selectedAll();
+    if (!layersFor || layersFor.length !== key.length || layersFor.some((el, i) => el !== key[i])) {
+      layersFor = key;
+      buildLayers();
+    }
+  }
+
+  layerTree.addEventListener("click", (e) => {
+    const row = e.target.closest(".row");
+    const el = row && rowEl.get(row);
+    if (!el) return;
+    if (e.target.closest(".chev")) {
+      const open = !expanded.has(el);
+      const apply = (n) => {
+        open ? expanded.add(n) : expanded.delete(n);
+        if (e.altKey) layerKids(n).forEach(apply); // ⌥: the whole branch
+      };
+      apply(el);
+      return buildLayers();
+    }
+    if (e.metaKey || e.ctrlKey) {
+      layerAnchor = el;
+      return toggleSelect(el); // ⌘: add or take away one row
+    }
+    if (e.shiftKey) {
+      /* ⇧: every row between the last clicked one and this one, in the order the panel shows them. */
+      const order = [...rowEl.values()];
+      const a = order.indexOf(layerAnchor ?? selected);
+      const b = order.indexOf(el);
+      if (a >= 0 && b >= 0) return selectMany(order.slice(Math.min(a, b), Math.max(a, b) + 1));
+    }
+    layerAnchor = el;
+    select(el);
+  });
+  layerTree.addEventListener("pointerover", (e) => {
+    const el = rowEl.get(e.target.closest(".row"));
+    if (el && el !== hovered) {
+      hovered = el;
+      paint();
+    }
+  });
+  layers.addEventListener("pointerleave", () => {
+    hovered = null;
+    paint();
+  });
+
   /* Add to Figma (in the side panel): one click copies a prompt for the agent to capture that element
      into Figma through the Figma MCP server (its generate_figma_design capture). */
   const figButton = panel.querySelector(".addfig");
@@ -1960,7 +2185,31 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
       const notes = moves
         .sort((a, b) => a.n - b.n)
         .map((e) => ({ color: e.color, text: `Move ${e.n}: move the ${e.colorName}-marked element to its new position.` })); // the picture shows which one
-      const FOOT = 20 + notes.length * 24 + 12;
+      /* Then every other instruction, the same words the text prompt carries (text, spacing, fill, removals,
+         comments, notes), wrapped to the image so it stands on its own. */
+      const MONO = '400 12px ui-monospace, "SF Mono", Menlo, monospace';
+      const measure = document.createElement("canvas").getContext("2d");
+      measure.font = MONO;
+      const wrapW = x1 - x0 - 48;
+      const wrapped = [];
+      for (const para of prompt().split("\n")) {
+        if (!para.trim()) {
+          if (wrapped.length && wrapped.at(-1) !== "") wrapped.push("");
+          continue;
+        }
+        const indent = para.match(/^\s*/)[0];
+        let line = "";
+        for (const word of para.trim().split(/\s+/)) {
+          const next = line ? `${line} ${word}` : indent + word;
+          if (line && measure.measureText(next).width > wrapW) {
+            wrapped.push(line);
+            line = `${indent}  ${word}`;
+          } else line = next;
+        }
+        wrapped.push(line);
+      }
+      const LINE = 17;
+      const FOOT = 20 + notes.length * 24 + 12 + 14 + wrapped.length * LINE + 18;
       const canvas = document.createElement("canvas");
       canvas.width = Math.round((x1 - x0) * scale);
       const shotH = Math.round((y1 - y0) * scale);
@@ -1984,6 +2233,12 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
           ctx.fillStyle = "rgba(255,255,255,.92)";
           ctx.fillText(note.text, 40, y + 13);
         });
+        const textTop = top + 20 + notes.length * 24 + 12;
+        ctx.fillStyle = "rgba(255,255,255,.1)";
+        ctx.fillRect(24, textTop, x1 - x0 - 48, 1);
+        ctx.font = MONO;
+        ctx.fillStyle = "rgba(255,255,255,.78)";
+        wrapped.forEach((l, i) => ctx.fillText(l, 24, textTop + 14 + (i + 1) * LINE - 4));
       }
       const W = x1 - x0;
       const H = y1 - y0;
@@ -2119,10 +2374,12 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
   }
 
   function writeField(f, v) {
-    if (f === "fill" || f === "border-color") return setColor(selected, f, String(v));
-    if (f === "border") return setBorderWidth(selected, v);
-    if (f === "radius") setRadius(selected, v);
-    else setSpace(selected, fieldProps(f), v);
+    for (const el of selectedAll()) {
+      if (f === "fill" || f === "border-color") setColor(el, f, String(v));
+      else if (f === "border") setBorderWidth(el, v);
+      else if (f === "radius") setRadius(el, v);
+      else setSpace(el, fieldProps(f).length ? fieldProps(f) : [], v);
+    }
   }
 
   const fieldNow = (f) => (f === "radius" ? currentRadius(selected) : px(getComputedStyle(selected), fieldProps(f)[0]));
@@ -2138,6 +2395,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
   }
 
   let lastPanelFor = null;
+  let lastPanelCount = -1;
   /* Dock: while Move, Radius or Spacing has a selection, the panel sits on the right and the page makes room. */
   const DOCK = 260;
   let docked = null; // the page's own inline margin-right while docked
@@ -2182,11 +2440,18 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
       const d = describe(selected);
       const cls = [...selected.classList].filter((c) => !c.startsWith("ptk"))[0];
       panel.querySelector(".el").textContent = `<${d.tag}>${cls ? ` .${cls.replace(/^[A-Za-z]+-module__[A-Za-z0-9_-]+__/, "")}` : ""}`;
+      lastPanelCount = -1; // recount below
       panel.querySelector(".comp").textContent = d.components.length ? d.components.map((c) => `<${c}>`).join(" in ") : "";
       /* Sides that already differ open the four-field view, like Figma's independent padding. */
       const cs = getComputedStyle(selected);
       const split = px(cs, "padding-top") !== px(cs, "padding-bottom") || px(cs, "padding-left") !== px(cs, "padding-right");
       setIndependent(split);
+    }
+    const n = selectedAll().length;
+    if (n !== lastPanelCount) {
+      lastPanelCount = n;
+      const comps = describe(selected).components;
+      panel.querySelector(".comp").textContent = n > 1 ? `${n} selected, edits apply to all` : comps.length ? comps.map((c) => `<${c}>`).join(" in ") : "";
     }
     panel.querySelector('[data-sec="gap"]').hidden = !gapInfo(getComputedStyle(selected));
     const focused = root.activeElement;
@@ -3019,12 +3284,34 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     } else {
       e.preventDefault();
       /* Move: pressing on the selection (or anything inside it) drags it; elsewhere picks and drags the new one. */
-      const target = tool === "move" ? movedAt(e.clientX, e.clientY) ?? (selected && selected.contains(e.target) ? selected : pickFor(e.target)) : pickFor(e.target);
+      const deep = e.metaKey || e.ctrlKey;
+      let target = pickFor(e.target);
+      if (tool === "move") {
+        const moved = movedAt(e.clientX, e.clientY);
+        if (moved) target = moved;
+        else if (!deep && selected && selected.contains(e.target)) {
+          target = selected;
+          clickInto = { x: e.clientX, y: e.clientY, target: e.target };
+        } else target = canvasPick(e.target, deep);
+        if (e.shiftKey && !moved) {
+          clickInto = null;
+          return toggleSelect(target); // ⇧-click: add to or take from the selection
+        }
+      }
       select(target);
       if (tool === "move" && target) (moveAbsolute ? startMove : startFlowDrag)(e, target);
     }
   }, true);
   window.addEventListener("pointerup", () => setTimeout(() => pending && scheduleCheckpoint(), 0), true); // after the drop below settles
+  window.addEventListener("pointerup", (e) => {
+    const c = clickInto;
+    clickInto = null;
+    if (!c || tool !== "move" || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 4) return;
+    setTimeout(() => {
+      const next = deeperAt(c.target);
+      if (next) select(next);
+    }, 0);
+  }, true);
   window.addEventListener("pointerup", () => {
     if (tool === "comment") return commentRelease();
     if (drag?.kind === "flow") return dropFlow(false);
@@ -3037,6 +3324,7 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     if (!["move", "radius", "spacing"].includes(tool) || fromToolbar(e)) return;
     const el = pickText(e.target);
     if (!el) return;
+    if (tool === "move" && el !== selected && !(e.metaKey || e.ctrlKey)) return; // not there yet: the clicks are walking in
     e.preventDefault();
     e.stopPropagation();
     const at = caretAt(e.clientX, e.clientY);
@@ -3058,9 +3346,18 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
     if (drag?.kind === "move") return dragMove(e);
     if (drag?.kind === "flow") return dragFlow(e);
     if (!boxTool() || drag) return;
-    if (fromToolbar(e)) return void (hovered = null);
+    if (fromToolbar(e)) {
+      if (!e.composedPath().includes(layers)) hovered = null; // a Layers row sets its own hover
+      return;
+    }
     hoverBand = null;
-    hovered = pickFor(e.target);
+    const deep = e.metaKey || e.ctrlKey;
+    hovered =
+      tool === "move"
+        ? !deep && selected?.contains(e.target)
+          ? deeperAt(e.target) // inside the selection: the child a click would go into
+          : canvasPick(e.target, deep)
+        : pickFor(e.target);
   }, true);
 
   /* Option menus close on any press outside them (their own chevron toggles them itself). */
@@ -3132,20 +3429,21 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
       };
       /* ⇧↵ walks up to the parent, ↵ in Spacing walks down to the first child (Figma's keys). */
       if (e.key === "Enter" && e.shiftKey) {
-        take();
-        const up = selected.parentElement;
-        if (up && up !== document.body && up !== document.documentElement) select(up);
+        take(); // ⇧↵: the parents of everything selected
+        const ups = selectedAll().map((el) => el.parentElement).filter((p) => p && p !== document.body && p !== document.documentElement);
+        if (ups.length) selectMany(ups);
         return;
       }
       if (e.key === "Tab") {
-        take();
-        const next = e.shiftKey ? selected.previousElementSibling : selected.nextElementSibling;
-        if (next) select(next);
+        take(); // ⇥ / ⇧⇥: the next / previous visible sibling, wrapping around like Figma
+        const sibs = layerKids(selected.parentElement);
+        const i = sibs.indexOf(selected);
+        if (sibs.length > 1) select(sibs[(i + (e.shiftKey ? -1 : 1) + sibs.length) % sibs.length]);
         return;
       }
       if (tool === "move" && (e.key === "Delete" || e.key === "Backspace")) {
         take();
-        return removeElement(selected);
+        return selectedAll().forEach(removeElement);
       }
       if (tool === "move" && /^Arrow/.test(e.key)) {
         take();
@@ -3159,8 +3457,9 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
         return;
       }
       if (e.key === "Enter" && (tool === "spacing" || tool === "move")) {
-        take();
-        if (selected.firstElementChild) select(selected.firstElementChild);
+        take(); // ↵: all children of everything selected
+        const kids = selectedAll().flatMap(layerKids);
+        if (kids.length) selectMany(kids);
         return;
       }
       if (tool === "radius" && e.key === "Enter") {
@@ -3174,13 +3473,19 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
         return;
       }
     }
+    if (e.altKey && (e.code === "KeyL" || e.key.toLowerCase() === "l") && layers.style.display === "flex") {
+      e.preventDefault();
+      e.stopPropagation();
+      expanded = new WeakSet(); // ⌥L: collapse all layers, like Figma (the path to the selection stays open)
+      return buildLayers();
+    }
     if (e.altKey) return;
     const key = e.key.toLowerCase();
-    const shortcuts = { t: "text", s: "spacing", v: "move", c: "comment" };
+    const shortcuts = { t: "text", s: "spacing", v: "move", m: "absolute", c: "comment" };
     if (shortcuts[key] && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
-      setTool(tool === shortcuts[key] ? null : shortcuts[key]);
+      setTool(toolName() === shortcuts[key] ? null : shortcuts[key]);
     } else if (e.key === "Escape" && tool) {
       e.preventDefault();
       e.stopPropagation();

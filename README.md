@@ -44,7 +44,8 @@ to your dev page.
 | --- | --- |
 | `T` | **Text**: click any copy and type, `↵` or `Esc` to leave the field. Double-click text with Move, Radius or Spacing on to jump straight into Text |
 | `S` | **Spacing**: click any element, drag its padding (green), margin (orange) or gap (purple) bands, click a number to type |
-| `V` | **Move**: select anything (the toolkit opens on Move), drag its corner handle to change the radius, drag an element into any container (flow), or anywhere with **Absolute** picked from the corner wedge on Move; arrows reorder (flow) or nudge (absolute) |
+| `V` | **Select**: click anything to select it (the toolkit opens on Select), drag its corner handle to change the radius, drag it into any container to reorder or re-parent; arrows reorder. A **Layers** tree shows top left while something is selected |
+| `M` | **Move**: place anything freely; the prompt asks for position: absolute, with an annotated screenshot of the page |
 | `C` | **Comment**: click any element, or select some text, and type a note; `↵` adds it, `⇧↵` for a new line. Numbered pins mark each comment, click one to edit or delete it |
 
 Everything snaps to a 2px grid, typed values included (13 becomes 14).
@@ -74,7 +75,13 @@ nearest one. Off: exact values, even if no token exists yet. Remembered per brow
 
 **Undo.** `⌘Z` undoes the last toolkit action (a drag, a typed value, a text edit, a delete, a comment) and `⌘⇧Z` redoes it. While you type in a field it is the field's own undo; with nothing to undo the keys reach your app.
 
-**Selection** stays when you switch tools, and the side panel shows while something is selected.
+**Selection** works like Figma's canvas: a click picks at the current depth (first an outer container, then the
+selection's siblings), clicking the selection again goes one level in, and `⌘`-click goes straight to the innermost
+element. `⇧`-click adds or removes; `↵` selects all children, `⇧↵` all parents. Panel edits, the corner handle and
+Delete apply to everything selected. `⇥` / `⇧⇥` step to the next / previous sibling.
+
+**Layers** (top left, while Select has a selection) works like Figma's: click selects, `⌘`-click adds or removes, `⇧`-click selects a range, `⌥`-click an arrow opens or closes the whole branch, `⌥L` collapses everything but the path to the selection. Icons show column, row and grid layouts. The selection stays when you switch tools, and the side panel shows while
+something is selected.
 
 **Options.** Tools with a corner wedge (Move, Copy prompt) open their options from the wedge, a right-click, or a long press.
 

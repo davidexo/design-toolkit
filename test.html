@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Test drive · Design toolkit</title>
+    <title>Test · Design toolkit</title>
     <meta name="description" content="A guided test of design-toolkit: one realistic task per tool, with the prompt each one produces." />
     <script>
       /* Follow the toolkit's Appearance setting before first paint, so light never flashes dark. */
@@ -226,10 +226,10 @@
     </style>
   </head>
   <body>
-    <nav class="top" data-toolkit-ignore aria-label="Test drive">
+    <nav class="top" data-toolkit-ignore aria-label="Test">
       <div class="top-start">
         <a class="pill icon" href="./" aria-label="Back to Design toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5.5M11 6l-6 6 6 6"/></svg></a>
-        <span class="name">Test drive</span>
+        <span class="name">Test</span>
       </div>
       <span class="step" id="step-count"></span>
     </nav>
@@ -555,7 +555,7 @@
         const n = state.step;
         const s = STEPS[n - 1];
         document.querySelectorAll("#stage > [data-step]").forEach((el) => (el.hidden = Number(el.dataset.step) !== n));
-        document.title = `${s.title} · Test drive`;
+        document.title = `${s.title} · Test`;
         $("step-count").textContent = `${n} / ${STEPS.length}`;
         $("prev").disabled = n === 1;
         $("next").disabled = n === STEPS.length;
