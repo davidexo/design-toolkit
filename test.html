@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test drive · Design toolkit</title>
+    <meta name="description" content="A guided test of design-toolkit: one realistic task per tool, with the prompt each one produces." />
+    <style>
+      @font-face {
+        font-family: "Camera Plain";
+        src: url("https://permanent.is/fonts/ABCCameraPlainVariable.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+      :root {
+        --bg: #ffffff;
+        --ink: rgba(20, 20, 20, 0.9);
+        --ink-2: rgba(20, 20, 20, 0.6);
+        --ink-3: rgba(20, 20, 20, 0.4);
+        --surface: rgba(20, 20, 20, 0.04);
+        --surface-2: rgba(20, 20, 20, 0.08);
+        --line: rgba(20, 20, 20, 0.08);
+        --card: #ffffff;
+        --accent: #0a84ff;
+        --good: #30d158;
+        --warn: #ff9f0a;
+        --bad: #ff375f;
+        --ease: cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141414;
+          --ink: rgba(255, 255, 255, 0.9);
+          --ink-2: rgba(255, 255, 255, 0.55);
+          --ink-3: rgba(255, 255, 255, 0.4);
+          --surface: rgba(255, 255, 255, 0.05);
+          --surface-2: rgba(255, 255, 255, 0.1);
+          --line: rgba(255, 255, 255, 0.08);
+          --card: #1c1c1c;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 400 15px/1.55 "Camera Plain", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        letter-spacing: -0.0025em;
+        -webkit-font-smoothing: antialiased;
+      }
+      button { font: inherit; color: inherit; }
+      kbd {
+        font: inherit; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 5px;
+        background: var(--surface-2); color: var(--ink); font-variant-numeric: tabular-nums;
+      }
+
+      /* ---------- chrome (ignored by the toolkit) ---------- */
+      .top {
+        position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 24px;
+        background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
+      }
+      .back { color: var(--ink-2); text-decoration: none; font-size: 13px; }
+      .back:hover { color: var(--ink); }
+      .name { font-weight: 520; }
+      .dots { display: flex; gap: 6px; margin-left: auto; }
+      .dot {
+        all: unset; cursor: pointer; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px;
+        background: var(--surface); color: var(--ink-3); font-size: 12px; font-weight: 520; font-variant-numeric: tabular-nums;
+        transition: background-color .2s var(--ease), color .2s var(--ease);
+      }
+      .dot:hover { background: var(--surface-2); color: var(--ink); }
+      .dot[aria-current="step"] { background: var(--ink); color: var(--bg); }
+      .dot:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      .layout { display: grid; gap: 16px; max-width: 760px; margin: 0 auto; padding: 32px 24px 160px; }
+      .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+      .btn {
+        all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; height: 36px; padding: 0 14px;
+        border-radius: 10px; background: var(--surface-2); font-size: 14px; font-weight: 460; transition: opacity .2s var(--ease), transform .16s var(--ease);
+      }
+      .btn:hover { opacity: .8; }
+      .btn:active { transform: scale(.97); }
+      .btn.primary { background: var(--ink); color: var(--bg); margin-left: auto; }
+      .btn[disabled] { opacity: .35; pointer-events: none; }
+
+      /* ---------- the stage: sample product UI, this is what you edit ---------- */
+      .stage { min-height: 560px; padding: 40px; border-radius: 24px; background: var(--surface); display: grid; place-items: center; }
+      .stage > [data-step] { width: 100%; max-width: 560px; }
+      .stage > [hidden] { display: none; }
+
+      /* 1 · pricing */
+      .plan { padding: 28px; border-radius: 20px; background: var(--card); display: flex; flex-direction: column; gap: 20px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+      .plan-head { display: flex; justify-content: space-between; align-items: baseline; }
+      .plan-name { font-weight: 520; }
+      .plan-tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+      .plan-price { font-size: 44px; letter-spacing: -0.04em; line-height: 1; }
+      .plan-price small { font-size: 15px; color: var(--ink-2); letter-spacing: 0; }
+      .plan-pitch { margin: 0; color: var(--ink-2); }
+      .plan-features { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+      .plan-features li::before { content: "✓"; margin-right: 8px; color: var(--good); }
+      .plan-cta { height: 44px; border: 0; border-radius: 12px; background: var(--ink); color: var(--bg); font-weight: 520; }
+      .plan-fine { margin: 0; color: var(--ink-3); font-size: 12px; }
+
+      /* 2 · settings form */
+      .form { padding: 28px; border-radius: 20px; background: var(--card); display: flex; flex-direction: column; gap: 18px; }
+      .profile { display: flex; align-items: center; gap: 14px; }
+      .avatar { width: 52px; height: 52px; border-radius: 10px; background: linear-gradient(135deg, #ff9f0a, #ff375f); display: grid; place-items: center; color: #fff; font-weight: 520; }
+      .profile-meta { display: flex; flex-direction: column; }
+      .profile-meta span { color: var(--ink-2); font-size: 13px; }
+      .label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+      .field { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
+      .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+      .button { height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--surface-2); font-weight: 460; }
+      .button.solid { background: var(--accent); color: #fff; }
+
+      /* 3 · members table */
+      .members { border-radius: 20px; background: var(--card); overflow: hidden; }
+      .members-head { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+      .members-head span { color: var(--ink-2); font-size: 13px; }
+      .member-row { display: flex; align-items: center; gap: 12px; padding: 4px 20px; border-bottom: 1px solid var(--line); }
+      .member-row:last-child { border-bottom: 0; }
+      .initials { width: 28px; height: 28px; border-radius: 999px; background: var(--surface-2); display: grid; place-items: center; font-size: 11px; font-weight: 520; }
+      .member-name { flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
+      .member-name span { color: var(--ink-3); font-size: 12px; }
+      .role { font-size: 12px; color: var(--ink-2); }
+
+      /* 4 · notifications */
+      .inbox { padding: 24px; border-radius: 20px; background: var(--card); }
+      .inbox-title { margin: 0; font-size: 20px; font-weight: 460; letter-spacing: -0.01em; }
+      .inbox-sub { margin: 0; color: var(--ink-3); font-size: 13px; }
+      .feed { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+      .notice { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface); }
+      .notice-dot { width: 8px; height: 8px; margin-top: 7px; border-radius: 999px; background: var(--accent); flex: none; }
+      .notice p { margin: 0; }
+      .notice time { color: var(--ink-3); font-size: 12px; }
+
+      /* 5 · tabs */
+      .settings { padding: 24px; border-radius: 20px; background: var(--card); display: flex; flex-direction: column; gap: 20px; }
+      .settings h3 { margin: 0; font-size: 20px; font-weight: 460; }
+      .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); }
+      .tab { flex: 1; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); font-size: 13px; }
+      .tab.active { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+      .tab-body { color: var(--ink-2); margin: 0; }
+
+      /* 6 · danger zone */
+      .account { display: flex; flex-direction: column; gap: 16px; }
+      .panel-card { padding: 24px; border-radius: 20px; background: var(--card); display: flex; flex-direction: column; gap: 14px; }
+      .panel-card h3 { margin: 0; font-size: 17px; font-weight: 520; }
+      .panel-card p { margin: 0; color: var(--ink-2); font-size: 14px; }
+      .row-actions { display: flex; gap: 8px; }
+      .button.danger { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+      .danger-zone { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 40%, transparent); }
+
+      /* 7 · product grid */
+      .products { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .product { border-radius: 18px; background: var(--card); overflow: hidden; display: flex; flex-direction: column; }
+      .product-media { aspect-ratio: 4 / 3; background: linear-gradient(135deg, #64d2ff, #bf5af2); }
+      .product:nth-child(2) .product-media { background: linear-gradient(135deg, #ffd60a, #ff9f0a); }
+      .product-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 4px; }
+      .product-body span { color: var(--ink-2); font-size: 13px; }
+      .badge { align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 11px; font-weight: 520; }
+
+      /* 8 · signup review */
+      .signup { padding: 32px; border-radius: 24px; background: var(--card); display: flex; flex-direction: column; gap: 14px; }
+      .signup h3 { margin: 0; font-size: 24px; font-weight: 460; letter-spacing: -0.02em; }
+      .signup-lede { margin: 0; color: var(--ink-2); }
+      .signup .field { border-radius: 10px; }
+      .signup-actions { display: flex; gap: 8px; margin-top: 4px; }
+      .signup-actions .button { flex: 1; }
+      .signup-legal { margin: 0; color: var(--ink-3); font-size: 12px; }
+
+      /* 9 · open menu: closes like Radix or Headless UI (outside press, focus leaving, Esc) */
+      .toolbar-demo { padding: 20px; border-radius: 20px; background: var(--card); display: flex; justify-content: space-between; align-items: center; min-height: 320px; align-items: flex-start; }
+      .doc-title { display: flex; flex-direction: column; }
+      .doc-title span { color: var(--ink-3); font-size: 13px; }
+      .menu-wrap { position: relative; }
+      .menu-trigger { height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--surface-2); font-weight: 460; }
+      .menu-trigger[aria-expanded="true"] { background: var(--ink); color: var(--bg); }
+      .dropdown { position: absolute; right: 0; top: calc(100% + 6px); width: 220px; padding: 6px; border-radius: 14px; background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,.18); display: flex; flex-direction: column; }
+      .dropdown[hidden] { display: none; }
+      .menu-item { height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; text-align: left; font-size: 14px; display: flex; align-items: center; justify-content: space-between; }
+      .menu-item:hover, .menu-item:focus-visible { background: var(--surface-2); outline: none; }
+      .menu-item kbd { background: transparent; color: var(--ink-3); }
+      .menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+      .menu-item.destructive { color: var(--bad); }
+      .menu-log { margin: 12px 0 0; color: var(--ink-3); font-size: 12px; }
+
+      /* 10 · empty state */
+      .empty-state { padding: 48px 32px; border-radius: 24px; background: var(--card); display: flex; flex-direction: column; align-items: center; text-align: center; }
+      .empty-icon { width: 48px; height: 48px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; font-size: 22px; }
+      .empty-title { margin: 16px 0 0; font-size: 22px; font-weight: 460; letter-spacing: -0.02em; }
+      .empty-body { margin: 4px 0 0; color: var(--ink-2); max-width: 28em; }
+      .empty-link { margin-top: 20px; color: var(--ink-2); font-size: 13px; }
+      .empty-cta { margin-top: 12px; height: 40px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: var(--bg); font-weight: 520; }
+
+      @media (max-width: 960px) {
+        .stage { padding: 20px; min-height: 0; }
+      }
+      @media (max-width: 520px) {
+        .top { padding: 10px 16px; }
+        .layout { padding: 20px 16px 160px; }
+        .name { display: none; }
+        .products { grid-template-columns: 1fr; }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <nav class="top" data-toolkit-ignore aria-label="Test steps">
+      <a class="back" href="./">← Design toolkit</a>
+      <span class="name">Test drive</span>
+      <div class="dots" id="dots"></div>
+    </nav>
+
+    <div class="layout">
+      <main class="stage" id="stage" aria-label="Sample UI to edit">
+        <!-- 1 · Text -->
+        <section data-step="1" class="plan" aria-label="Pricing card">
+          <div class="plan-head"><span class="plan-name">Pro</span><span class="plan-tag">Most popular</span></div>
+          <div class="plan-price">$24<small> / month</small></div>
+          <p class="plan-pitch">The best plan for teams who want more out of their workflow every day.</p>
+          <ul class="plan-features">
+            <li>Unlimited projects</li>
+            <li>Shared component library</li>
+            <li>Priority support</li>
+          </ul>
+          <button class="plan-cta" type="button">Get started</button>
+          <p class="plan-fine">Billed annually. Cancel anytime. Prices exclude VAT where applicable.</p>
+        </section>
+
+        <!-- 2 · Radius -->
+        <section data-step="2" class="form" aria-label="Profile settings" hidden>
+          <div class="profile">
+            <div class="avatar">AK</div>
+            <div class="profile-meta"><strong>Alex Kim</strong><span>alex@studio.dev</span></div>
+          </div>
+          <label class="label">Display name<input class="field" value="Alex Kim" /></label>
+          <label class="label">Email<input class="field" value="alex@studio.dev" /></label>
+          <label class="label">Website<input class="field" value="studio.dev" /></label>
+          <div class="form-actions">
+            <button class="button" type="button">Cancel</button>
+            <button class="button solid" type="button">Save changes</button>
+          </div>
+        </section>
+
+        <!-- 3 · Padding -->
+        <section data-step="3" class="members" aria-label="Team members" hidden>
+          <div class="members-head"><strong>Members</strong><span>5 people</span></div>
+          <div class="member-row"><span class="initials">AK</span><span class="member-name">Alex Kim<span>alex@studio.dev</span></span><span class="role">Owner</span></div>
+          <div class="member-row"><span class="initials">MR</span><span class="member-name">Maya Rossi<span>maya@studio.dev</span></span><span class="role">Admin</span></div>
+          <div class="member-row"><span class="initials">JO</span><span class="member-name">Jonas Ortiz<span>jonas@studio.dev</span></span><span class="role">Editor</span></div>
+          <div class="member-row"><span class="initials">SL</span><span class="member-name">Sana Lee<span>sana@studio.dev</span></span><span class="role">Editor</span></div>
+          <div class="member-row"><span class="initials">TB</span><span class="member-name">Theo Brandt<span>theo@studio.dev</span></span><span class="role">Viewer</span></div>
+        </section>
+
+        <!-- 4 · Gap + margin -->
+        <section data-step="4" class="inbox" aria-label="Notifications" hidden>
+          <h3 class="inbox-title">Notifications</h3>
+          <p class="inbox-sub">3 unread</p>
+          <div class="feed">
+            <div class="notice"><span class="notice-dot"></span><div><p>Maya commented on <strong>Pricing v3</strong></p><time>2 min ago</time></div></div>
+            <div class="notice"><span class="notice-dot"></span><div><p>Jonas shared <strong>Onboarding flow</strong> with you</p><time>1 hour ago</time></div></div>
+            <div class="notice"><span class="notice-dot"></span><div><p>Your export of <strong>Brand kit</strong> is ready</p><time>Yesterday</time></div></div>
+          </div>
+        </section>
+
+        <!-- 5 · Reorder -->
+        <section data-step="5" class="settings" aria-label="Workspace settings" hidden>
+          <h3>Workspace settings</h3>
+          <div class="tabs">
+            <button class="tab active" type="button">General</button>
+            <button class="tab" type="button">Billing</button>
+            <button class="tab" type="button">Members</button>
+            <button class="tab" type="button">Integrations</button>
+            <button class="tab" type="button">Security</button>
+          </div>
+          <p class="tab-body">Name, logo and default language for this workspace.</p>
+        </section>
+
+        <!-- 6 · Re-parent -->
+        <section data-step="6" class="account" aria-label="Account" hidden>
+          <div class="panel-card">
+            <h3>Account</h3>
+            <p>Update how your name and email show up across the workspace.</p>
+            <div class="row-actions">
+              <button class="button solid" type="button">Save</button>
+              <button class="button danger" type="button">Delete account</button>
+            </div>
+          </div>
+          <div class="panel-card danger-zone">
+            <h3>Danger zone</h3>
+            <p>Deleting your account removes every project and cannot be undone.</p>
+          </div>
+        </section>
+
+        <!-- 7 · Absolute -->
+        <section data-step="7" class="products" aria-label="Product grid" hidden>
+          <article class="product">
+            <div class="product-media"></div>
+            <div class="product-body"><strong>Field Notes</strong><span>Dot grid, 48 pages</span><span class="badge">New</span></div>
+          </article>
+          <article class="product">
+            <div class="product-media"></div>
+            <div class="product-body"><strong>Desk Lamp</strong><span>Warm white, dimmable</span></div>
+          </article>
+        </section>
+
+        <!-- 8 · Comment -->
+        <section data-step="8" class="signup" aria-label="Sign up" hidden>
+          <h3>Create your acount</h3>
+          <p class="signup-lede">Start building with your team in minutes. No credit card required, ever, for as long as you stay on the free plan.</p>
+          <label class="label">Work email<input class="field" placeholder="you@company.com" /></label>
+          <label class="label">Password<input class="field" type="password" placeholder="At least 8 characters" /></label>
+          <div class="signup-actions">
+            <button class="button" type="button">Continue with Google</button>
+            <button class="button" type="button">Sign up</button>
+          </div>
+          <p class="signup-legal">By signing up you agree to our Terms and Privacy Policy.</p>
+        </section>
+
+        <!-- 9 · Open menu -->
+        <section data-step="9" aria-label="Document with an open menu" hidden>
+          <div class="toolbar-demo">
+            <div class="doc-title"><strong>Q4 roadmap</strong><span>Edited 3 min ago</span></div>
+            <div class="menu-wrap" id="menu-wrap">
+              <button class="menu-trigger" id="menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="dropdown">Share</button>
+              <div class="dropdown" id="dropdown" role="menu" hidden>
+                <button class="menu-item" role="menuitem" type="button">Copy link <kbd>⌘L</kbd></button>
+                <button class="menu-item" role="menuitem" type="button">Invite people</button>
+                <button class="menu-item" role="menuitem" type="button">Publish to web</button>
+                <div class="menu-sep" role="separator"></div>
+                <button class="menu-item destructive" role="menuitem" type="button">Stop sharing</button>
+              </div>
+            </div>
+          </div>
+          <p class="menu-log" id="menu-log" data-toolkit-ignore>Menu is closed.</p>
+        </section>
+
+        <!-- 10 · Everything -->
+        <section data-step="10" class="empty-state" aria-label="Empty projects" hidden>
+          <div class="empty-icon" aria-hidden="true">✦</div>
+          <h3 class="empty-title">No projects found</h3>
+          <p class="empty-body">You haven't created any projects yet. Projects are where you keep your files, components and notes together in one place.</p>
+          <a class="empty-link" href="#">Import from Figma</a>
+          <button class="empty-cta" type="button">Create project</button>
+        </section>
+      </main>
+
+      <div class="nav" data-toolkit-ignore>
+        <button class="btn" type="button" id="prev">Back</button>
+        <button class="btn primary" type="button" id="next">Next</button>
+      </div>
+    </div>
+
+    <script>
+      const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+      const K = (k) => `<kbd>${k}</kbd>`;
+      const COPY = `${K(isMac ? "⌘" : "Ctrl")}${K("↵")}`;
+
+      const STEPS = [
+        {
+          tool: "Text",
+          title: "Tighten the pricing copy",
+          scenario: "Marketing wants the Pro card to say less and push the trial. Rewrite it right on the card.",
+          todo: [
+            `Press ${K("T")} and click the button. Change "Get started" to "Start 14-day trial".`,
+            `Shorten the pitch to "For teams shipping every week."`,
+            `In the fine print, delete "Prices exclude VAT where applicable." so only two sentences stay.`,
+            `Press ${COPY} to copy the prompt.`,
+          ],
+          expect: [
+            "Three edits, each with the exact before and after text",
+            "The partial delete reads as a text change, not a removed element",
+            "No style or layout instructions mixed in",
+          ],
+        },
+        {
+          tool: "Radius",
+          title: "Match the inputs to the buttons",
+          scenario: "The fields are 4px but the buttons are 12px, so the form looks stitched together. The avatar should be a circle.",
+          todo: [
+            `Press ${K("R")}, click the Display name field and drag its corner to 12 (or press ${K("↵")} and type 12).`,
+            `Click the avatar and drag until it is fully round.`,
+            `Press ${COPY}.`,
+          ],
+          expect: [
+            "Names the shared .field rule, so all three inputs change, not just one",
+            "Avatar reads as fully rounded (circle), not a magic px number",
+            "Respects the design-token setting on Copy prompt",
+          ],
+        },
+        {
+          tool: "Spacing · padding",
+          title: "Give the member rows room",
+          scenario: "Rows are 4px tall on top and bottom and feel like a spreadsheet. Bring them to 12px vertically, keep the sides.",
+          todo: [
+            `Press ${K("S")} and click a member row (not the text inside, use ${K("⇧")}${K("↵")} to walk up to the row).`,
+            `Hold ${K("⌥")} and drag the top padding band to 12 so the bottom follows.`,
+            `Press ${COPY}.`,
+          ],
+          expect: [
+            "padding-top and padding-bottom 4px → 12px, left and right untouched",
+            "Says it is the .member-row rule, so every row changes",
+            "Ideally one line, like padding-block: 4px → 12px",
+          ],
+        },
+        {
+          tool: "Spacing · gap and margin",
+          title: "Let the feed breathe",
+          scenario: "Notifications are glued together, and the header sits right on top of the first one.",
+          todo: [
+            `Press ${K("S")} and click the list of notifications. Drag the purple gap band from 2 to 8.`,
+            `Click the "3 unread" line and drag its bottom margin (orange) to 16.`,
+            `Press ${COPY}.`,
+          ],
+          expect: [
+            "gap: 2px → 8px on the .feed container, not margins on each item",
+            "margin-bottom on .inbox-sub 0 → 16px",
+            "Two separate items, each with a clear target",
+          ],
+        },
+        {
+          tool: "Move · reorder",
+          title: "Put Billing where people expect it",
+          scenario: "Billing is the second tab, but people look for it near the end. Move it after Integrations.",
+          todo: [
+            `Press ${K("V")} and drag the Billing tab between Integrations and Security.`,
+            `Or click it and press ${K("→")} twice.`,
+            `Press ${COPY}.`,
+          ],
+          expect: [
+            "A reorder: position 2 → 4 of 5 in .tabs",
+            "Mentions reordering the data if the tabs come from a .map()",
+            "No absolute positioning or CSS order hacks",
+          ],
+        },
+        {
+          tool: "Move · into another container",
+          title: "Move Delete account into the danger zone",
+          scenario: "A destructive button next to Save is an accident waiting to happen. It belongs in the danger zone card.",
+          todo: [
+            `Press ${K("V")} and drag Delete account below the danger zone text.`,
+            `Press ${COPY}.`,
+          ],
+          expect: [
+            "Out of .row-actions into .danger-zone, at the end, after the p",
+            "Asks to move the JSX with its props and handlers",
+            "Mentions tidying the row it left behind",
+          ],
+        },
+        {
+          tool: "Move · absolute",
+          title: "Pin the New badge to the image",
+          scenario: "The New badge floats under the title. Design wants it pinned to the top-left corner of the product image.",
+          todo: [
+            `Press ${K("V")}, open the corner wedge on Move and pick Absolute.`,
+            "Drag the New badge onto the top-left of the blue image, about 12px in from each edge.",
+            `Press ${COPY}. Screenshot capture does not work in embedded previews, you get the text only.`,
+          ],
+          expect: [
+            "position: absolute inside .product (or the media) with top and left offsets",
+            "Tells it to give the container position: relative",
+            "Move 1 and its colour named, matching the page",
+          ],
+        },
+        {
+          tool: "Comment",
+          title: "Review the sign-up screen",
+          scenario: "You are reviewing a teammate's screen. Some of it is not a value you can drag, it is feedback. Leave it as comments.",
+          todo: [
+            `Press ${K("C")} and click the Sign up button. Write "This should be the primary action, the Google button is secondary." and press ${K("↵")}.`,
+            `Select the word "acount" in the title and comment "Typo".`,
+            `Select the second half of the intro and comment "Too long, cut after 'No credit card required'".`,
+            `Click a pin to edit or delete a comment. Then press ${COPY}.`,
+          ],
+          expect: [
+            "A Comments section, one item per pin, in pin order",
+            "Text selections quoted, so the agent knows exactly which words",
+            "Says these are notes, not exact values, and to ask when unclear",
+          ],
+        },
+        {
+          tool: "Comment · open menu",
+          title: "Comment inside an open menu",
+          scenario: "This menu closes the way real ones do (Radix, Headless UI): on a press outside, when focus leaves it, or on Esc. Using the toolkit must never close it.",
+          todo: [
+            "Open the Share menu with the mouse, without a tool on.",
+            `Press ${K("C")}. The menu has to stay open.`,
+            `Click "Publish to web" and comment "Needs a confirm step first". Type, press ${K("↵")}, click a pin. The menu stays open throughout.`,
+            `Try ${K("R")} on the menu and round it, then ${COPY}. Still open?`,
+          ],
+          expect: [
+            "The menu never closes while you use the toolkit (watch the line under the card)",
+            "The comment targets the menu item, not the trigger",
+            "Esc in the note box closes the note, not the menu",
+          ],
+        },
+        {
+          tool: "All five",
+          title: "Polish the empty state",
+          scenario: "A real pass, the way you would use it day to day: several tools, one prompt.",
+          todo: [
+            `${K("T")}: change the title to "No projects yet" and cut the body to its first sentence.`,
+            `${K("R")}: round the Create project button to 12.`,
+            `${K("S")}: give the title a top margin of 20 instead of 16.`,
+            `${K("V")}: move Create project above Import from Figma.`,
+            `${K("C")}: comment on the icon, something like "Use our real folder icon here".`,
+            `Press ${COPY} once for everything.`,
+          ],
+          expect: [
+            "One prompt with Text, Corner radius, Spacing, Moved and Comments sections",
+            "Numbering runs across sections so you can refer to items",
+            "The how-to rules come after the edits, once per kind",
+          ],
+        },
+      ];
+
+      const KEY = "design-toolkit:test-drive";
+      const load = () => {
+        try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
+      };
+      const state = Object.assign({ step: 1, results: {} }, load());
+      const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+      const result = (n) => (state.results[n] ??= { prompts: [] });
+
+      const $ = (id) => document.getElementById(id);
+      const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const fromHash = () => {
+        const n = Number((location.hash.match(/step-(\d+)/) || [])[1]);
+        return n >= 1 && n <= STEPS.length ? n : null;
+      };
+
+      function renderDots() {
+        $("dots").innerHTML = STEPS.map((s, i) => {
+          const n = i + 1;
+          return `<button class="dot" type="button" data-n="${n}" aria-label="Step ${n}: ${esc(s.title)}"${n === state.step ? ' aria-current="step"' : ""}>${n}</button>`;
+        }).join("");
+      }
+
+      function render() {
+        const n = state.step;
+        const s = STEPS[n - 1];
+        document.querySelectorAll("#stage > [data-step]").forEach((el) => (el.hidden = Number(el.dataset.step) !== n));
+        document.title = `${s.title} · Test drive`;
+        $("prev").disabled = n === 1;
+        $("next").disabled = n === STEPS.length;
+        renderDots();
+        history.replaceState(null, "", `#step-${n}`);
+      }
+
+      const go = (n) => {
+        state.step = Math.min(Math.max(n, 1), STEPS.length);
+        save();
+        render();
+        window.scrollTo({ top: 0 });
+      };
+
+      $("dots").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-n]");
+        if (b) go(Number(b.dataset.n));
+      });
+      $("prev").addEventListener("click", () => go(state.step - 1));
+      $("next").addEventListener("click", () => go(state.step + 1));
+
+      /* toolkit.js fires this after every Copy prompt. */
+      window.addEventListener("design-toolkit:copy", (e) => {
+        result(state.step).prompts.push(e.detail.prompt);
+        save();
+      });
+
+      /* Every copied prompt is kept per step, so Claude can read them from the page while we iterate. */
+      function feedback() {
+        const parts = STEPS.map((s, i) => {
+          const prompt = state.results[i + 1]?.prompts.at(-1);
+          return prompt ? `## Step ${i + 1}: ${s.title} (${s.tool})\nExpected: ${s.expect.join("; ")}\n\`\`\`\n${prompt}\n\`\`\`` : null;
+        }).filter(Boolean);
+        return parts.join("\n\n") || "No prompts copied yet.";
+      }
+      window.testDriveFeedback = feedback; // so Claude can read it straight from the page
+
+      /* Step 9's menu, wired like a typical headless menu: it closes on a press outside, on focus leaving, and on Esc. */
+      (() => {
+        const wrap = $("menu-wrap");
+        const trigger = $("menu-trigger");
+        const dropdown = $("dropdown");
+        const log = $("menu-log");
+        const set = (open, why) => {
+          if (open === !dropdown.hidden) return;
+          dropdown.hidden = !open;
+          trigger.setAttribute("aria-expanded", String(open));
+          log.textContent = open ? "Menu is open." : `Menu closed: ${why}.`;
+          if (open) dropdown.querySelector(".menu-item").focus();
+        };
+        trigger.addEventListener("click", () => set(dropdown.hidden, "trigger pressed"));
+        document.addEventListener("pointerdown", (e) => !wrap.contains(e.target) && set(false, "press outside"));
+        wrap.addEventListener("focusout", (e) => !wrap.contains(e.relatedTarget) && set(false, "focus left the menu"));
+        document.addEventListener("keydown", (e) => e.key === "Escape" && set(false, "Esc"));
+        dropdown.addEventListener("click", (e) => e.target.closest(".menu-item") && set(false, "item chosen"));
+      })();
+
+      state.step = fromHash() ?? state.step;
+      render();
+    </script>
+    <script src="toolkit.js" async></script>
+  </body>
+</html>

@@ -46,6 +46,7 @@ to your dev page.
 | `R` | **Radius**: click any box, drag the corner handle, `↑` `↓` to step, `↵` or click the value to type |
 | `S` | **Spacing**: click any element, drag its padding (green), margin (orange) or gap (purple) bands, click a number to type |
 | `V` | **Move**: drag an element into any container (flow), or anywhere with **Absolute** picked from the corner wedge on Move; arrows reorder (flow) or nudge (absolute) |
+| `C` | **Comment**: click any element, or select some text, and type a note; `↵` adds it, `⇧↵` for a new line. Numbered pins mark each comment, click one to edit or delete it |
 
 Everything snaps to a 2px grid, typed values included (13 becomes 14).
 
@@ -66,6 +67,10 @@ design sidebar.
 
 **Use design tokens** (the corner wedge on Copy prompt). On (default): Claude maps values to your existing design tokens, rounding to the
 nearest one. Off: exact values, even if no token exists yet. Remembered per browser.
+
+**Appearance** (same menu). Dark (default), Light, or Auto to follow the system. Remembered per browser.
+
+**Move the toolbar** by dragging it from anywhere, buttons included (a press that barely moves is still a click); double-click its frame to put it back. **×** collapses it to a **+** that keeps the edit count; click it (or press a tool key) to open it again. Both are remembered per browser.
 
 **Move.** Flow is the default: drag an element and a blue line shows the slot it will take in the
 container under your pointer, like Figma's auto layout. On drop the page reflows as if the change were

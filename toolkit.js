@@ -8,6 +8,7 @@
    S  Spacing  click any element, drag its padding, margin or gap bands, or click a value to type one.
    V  Move     drag any element anywhere; the prompt explains the move in layout terms (new container,
                new order, neighbours, alignment, overlap) so Claude can turn it into real layout.
+   C  Comment  click any element (or select some text) and leave a note in your own words.
 
    Values snap to a 2px grid. Radius: ⌥ (or ⌘) for 1px values. Spacing uses Figma's keys: ⌥ drags the
    opposite side too, ⌥⇧ all four sides, ⌘ ignores the grid. ↵ child, ⇧↵ parent, ⇥ ⇧⇥ siblings.
@@ -45,6 +46,11 @@
   try {
     useTokens = localStorage.getItem("ptk-tokens") !== "off";
   } catch {}
+  /* Toolbar appearance: dark (default), light, or auto to follow the system. Remembered per browser. */
+  let theme = "dark";
+  try {
+    theme = ["light", "auto"].includes(localStorage.getItem("ptk-theme")) ? localStorage.getItem("ptk-theme") : "dark";
+  } catch {}
 
   let editing = null; // text: element currently contenteditable
   const textEdits = new Map(); // element -> { before, shown, after, tag, path, components, snapshot }
@@ -65,8 +71,12 @@
 
   const moveEdits = new Map(); // element -> { dx, dy, base, inline, from, ...describe }
 
-  const count = () => textEdits.size + radiusEdits.size + spaceEdits.size + moveEdits.size;
-  const boxTool = () => tool === "radius" || tool === "spacing" || tool === "move";
+  /* Comments are notes, not values: several can sit on one element, so they are a list. */
+  const comments = []; // { n, el, text, quote, tag, path, components }
+  let composing = null; // { el, quote, comment? } while the note box is open
+
+  const count = () => textEdits.size + radiusEdits.size + spaceEdits.size + moveEdits.size + comments.length;
+  const boxTool = () => tool === "radius" || tool === "spacing" || tool === "move" || tool === "comment";
 
   /* ---------- page styles (attributes only, so React keeps owning the DOM) ---------- */
 
@@ -76,6 +86,8 @@
     html[data-ptk-tool="radius"] body *:not([data-ptk-host]),
     html[data-ptk-tool="spacing"] body *:not([data-ptk-host]),
     html[data-ptk-tool="move"] body *:not([data-ptk-host]) { cursor: default !important; }
+    html[data-ptk-tool="comment"] body *:not([data-ptk-host]) { cursor: crosshair !important; }
+    html[data-ptk-tool="comment"] body *:not([data-ptk-host])::selection { background: rgba(255, 214, 10, .45); }
     [data-ptk-editing] { outline: 1.5px solid ${BLUE} !important; outline-offset: 3px; caret-color: ${BLUE}; }
     [data-ptk-edited]:not([data-ptk-editing]) { outline: 1.5px dashed ${BLUE} !important; outline-offset: 3px; }
   `;
@@ -90,10 +102,52 @@
 
   const host = document.createElement("div");
   host.setAttribute("data-ptk-host", "");
+  host.dataset.theme = theme;
   const root = host.attachShadow({ mode: "open" });
+
+  /* Using the toolkit must never change the app's state: an open dropdown, popover or dialog has to stay
+     open while you comment on it or tune it. So nothing the toolkit does reaches the page as an outside
+     press or a focus change. */
+  /* Presses on the toolbar keep focus where it was (only fields we type into take it). */
+  root.addEventListener("mousedown", (e) => {
+    if (!e.composedPath()[0].closest?.("input, textarea")) e.preventDefault();
+  });
+  /* Events from the toolkit stop at its host, so the page's outside-press and focus listeners never see them. */
+  ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "auxclick", "contextmenu", "touchstart", "touchend", "focusin", "focusout", "keydown", "keyup", "keypress", "input", "beforeinput"].forEach((t) =>
+    host.addEventListener(t, (e) => e.stopPropagation()),
+  );
+  /* When a toolkit field takes focus, the app's element loses it. Hide that blur from the app (menus and
+     focus traps close or steal focus back on it), and hand focus back when the field closes. */
+  const intoToolkit = (e) => e.relatedTarget === host;
+  window.addEventListener("focusout", (e) => intoToolkit(e) && e.stopPropagation(), true);
+  window.addEventListener("blur", (e) => intoToolkit(e) && e.stopPropagation(), true);
+  window.addEventListener("focusin", (e) => e.target === host && e.stopPropagation(), true);
+  let appFocus = null; // the app's focused element before a toolkit field took focus
+  const deepActive = () => {
+    let a = document.activeElement;
+    while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+    return a;
+  };
+  function focusField(input) {
+    const a = deepActive();
+    if (a && a !== host && !host.contains(a)) appFocus = a;
+    input.focus({ preventScroll: true });
+  }
+  function giveFocusBack() {
+    const a = appFocus;
+    appFocus = null;
+    if (a?.isConnected && document.activeElement === host) a.focus({ preventScroll: true });
+  }
   root.innerHTML = `
     <style>
       :host { all: initial; }
+      /* Dark by default. Light (or Auto on a light system) swaps the ink and the pane, nothing else:
+         the page overlays (blue selection, bands, tags) read on any page as they are. */
+      :host, :host([data-theme="dark"]) { --ink-rgb: 255, 255, 255; --elev-rgb: 38, 38, 38; --shadow-rgb: 0, 0, 0; --danger: #ff6961; }
+      :host([data-theme="light"]) { --ink-rgb: 20, 20, 20; --elev-rgb: 252, 252, 252; --shadow-rgb: 0, 0, 0; --danger: #e5484d; }
+      @media (prefers-color-scheme: light) {
+        :host([data-theme="auto"]) { --ink-rgb: 20, 20, 20; --elev-rgb: 252, 252, 252; --shadow-rgb: 0, 0, 0; --danger: #e5484d; }
+      }
       * { box-sizing: border-box; }
       .tag, .lb {
         font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
@@ -103,24 +157,46 @@
          pane, dimmed tools with a thumb that springs in under the chosen one, corner wedges for options.
          The pane is a little more opaque than the original because it floats over any page. */
       .bar, .menu {
-        --ink-rgb: 255, 255, 255; --elev-rgb: 38, 38, 38; --shadow-rgb: 0, 0, 0; --rule: rgba(255, 255, 255, .1); --pick: #4c9df5;
+        --rule: rgba(var(--ink-rgb), .1); --pick: #4c9df5;
         --slot: 38px; --pad: 6px; --gap: 2px; --r: 14px; --tool-r: 10px;
         font: 460 13px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
-        -webkit-font-smoothing: antialiased; user-select: none; color: #fff;
+        -webkit-font-smoothing: antialiased; user-select: none; color: rgb(var(--ink-rgb));
         border-radius: var(--r); background: rgba(var(--elev-rgb), .8);
         -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%); isolation: isolate;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px var(--rule), 0 10px 40px rgba(var(--shadow-rgb), .25);
+        box-shadow: inset 0 1px 0 rgba(var(--ink-rgb), .06), 0 0 0 1px var(--rule), 0 10px 40px rgba(var(--shadow-rgb), .25);
       }
       .bar {
         position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2147483647;
         display: flex; align-items: center; gap: var(--gap); padding: var(--pad);
         max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none;
       }
+      /* Dragged somewhere: placed by its top-left corner (see placeBar). */
+      .bar[data-placed] { transform: none; bottom: auto; }
+      .bar { touch-action: none; } /* the whole bar drags, buttons included */
+      .bar[data-dragging], .bar[data-dragging] * { cursor: grabbing !important; }
+      .bar .close { width: 30px; }
+      .bar .close > svg { width: 14px; height: 14px; }
+      /* Collapsed: one button that shows the edit count, drags like the bar, and opens the bar again. */
+      .bar .expand { display: none; }
+      .bar[data-collapsed] > :not(.expand) { display: none; }
+      .bar[data-collapsed] .expand {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: var(--slot); height: var(--slot); padding: 0 10px;
+        border-radius: var(--tool-r); color: rgb(var(--ink-rgb)); transition: background-color .2s;
+      }
+      .bar[data-collapsed] .expand:hover { background: rgba(var(--ink-rgb), .08); }
+      /* The X turns into a + as the bar collapses, and back as it opens (display: none restarts each animation). */
+      .bar .expand > svg { width: 16px; height: 16px; rotate: 45deg; animation: x-to-plus .4s cubic-bezier(.3, 1.42, .4, 1) both; }
+      .bar .close > svg { animation: plus-to-x .4s cubic-bezier(.3, 1.42, .4, 1) both; }
+      @keyframes x-to-plus { from { rotate: 0deg; } }
+      @keyframes plus-to-x { from { rotate: 45deg; } }
+      @media (prefers-reduced-motion: reduce) { .bar .expand > svg, .bar .close > svg { animation: none; } }
+      .bar .expand .count { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: ${BLUE}; }
+      .bar .expand .count:empty { display: none; }
       .bar button, .menu button { all: unset; box-sizing: border-box; cursor: pointer; -webkit-tap-highlight-color: transparent; }
       .bar button:focus-visible, .menu button:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
       .bar .tool {
         position: relative; display: grid; place-items: center; flex: none; width: var(--slot); height: var(--slot);
-        border-radius: var(--tool-r); color: #fff; opacity: .45; transition: opacity .2s, background-color .2s;
+        border-radius: var(--tool-r); color: rgb(var(--ink-rgb)); opacity: .45; transition: opacity .2s, background-color .2s;
       }
       .bar .tool:hover { opacity: .8; background: rgba(var(--ink-rgb), .05); }
       /* the thumb grows in under the chosen tool */
@@ -137,26 +213,35 @@
       /* a corner wedge, the universal "there is more here" */
       .bar .notch { position: absolute; right: 3px; bottom: 3px; width: 9px; height: 9px; z-index: 2; }
       .bar .notch::after {
-        content: ""; position: absolute; right: 0; bottom: 0; border-left: 5px solid transparent; border-bottom: 5px solid #fff;
+        content: ""; position: absolute; right: 0; bottom: 0; border-left: 5px solid transparent; border-bottom: 5px solid rgb(var(--ink-rgb));
         opacity: .4; transition: opacity .16s;
       }
       .bar .notch:hover::after, .bar .notch[aria-expanded="true"]::after { opacity: .9; }
       .split { width: 1px; height: 20px; margin: 0 5px; flex: none; background: rgba(var(--ink-rgb), .12); }
+      /* Copy prompt: the one action, so an icon button like the tools but filled in the accent, never dimmed once there is something to copy. */
       .bar .copy {
-        position: relative; display: inline-flex; align-items: center; gap: 8px; flex: none; height: var(--slot); padding: 0 16px 0 12px;
-        border-radius: var(--tool-r); background: #fff; color: #141414; font-weight: 520; transition: opacity .2s, background-color .2s;
+        position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none;
+        min-width: var(--slot); height: var(--slot); padding: 0 10px; border-radius: var(--tool-r); background: ${BLUE}; color: #fff;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 2px 8px rgba(10, 132, 255, .35);
+        transition: background-color .2s, box-shadow .2s, color .2s, scale .3s cubic-bezier(.3, 1.42, .4, 1);
       }
-      .bar .copy:hover { background: rgba(255, 255, 255, .88); }
-      .bar .copy:active { scale: .97; }
-      .bar .copy[aria-disabled="true"] { background: rgba(var(--ink-rgb), .08); color: rgba(255, 255, 255, .4); cursor: default; }
-      .bar .copy .notch::after { border-bottom-color: currentColor; }
+      .bar .copy:has(.badge:not([hidden])) { padding: 0 13px 0 10px; } /* clear of the corner wedge */
+      .bar .copy > svg { width: 18px; height: 18px; transition: scale .3s cubic-bezier(.3, 1.42, .4, 1); }
+      .bar .copy:hover { background: #3a9bff; }
+      .bar .copy:active { scale: .94; transition-duration: 90ms; }
+      .bar .copy.done { background: #30d158; color: #fff; box-shadow: 0 2px 8px rgba(48, 209, 88, .35); }
+      .bar .copy[aria-disabled="true"]:not(.done) { background: rgba(var(--ink-rgb), .08); color: rgba(var(--ink-rgb), .35); box-shadow: none; cursor: default; }
+      .bar .copy + .notch::after { border-bottom-color: #fff; opacity: .55; }
+      .bar .copy[aria-disabled="true"] + .notch::after { border-bottom-color: rgb(var(--ink-rgb)); opacity: .3; }
+      /* edit count trails the icon, so the button grows a little when there is something to copy */
       .badge {
-        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: rgba(20, 20, 20, .12);
-        display: inline-grid; place-items: center; font-size: 11px; font-variant-numeric: tabular-nums;
+        font-size: 13px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+        animation: pop .3s cubic-bezier(.3, 1.42, .4, 1) both;
       }
+      @keyframes pop { from { scale: .4; opacity: 0; } }
       .badge[hidden] { display: none; }
       svg { flex: none; }
-      kbd { font: inherit; color: rgba(255, 255, 255, .5); }
+      kbd { font: inherit; color: rgba(var(--ink-rgb), .5); }
 
       /* Options rise out of the bar like the shape flyout. */
       .menu { position: fixed; z-index: 2147483647; display: none; min-width: 236px; padding: var(--pad); animation: rise .3s cubic-bezier(.22, 1.14, .36, 1) both; }
@@ -165,23 +250,23 @@
         55% { opacity: 1; }
         to { opacity: 1; transform: none; }
       }
-      .menu .mh { padding: 6px 8px; font-size: 11px; color: rgba(255, 255, 255, .45); }
+      .menu .mh { padding: 6px 8px; font-size: 11px; color: rgba(var(--ink-rgb), .45); }
       .menu .mi { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; align-items: center; width: 100%; padding: 8px; border-radius: var(--tool-r); transition: background-color .15s; }
       .menu .mi:hover { background: rgba(var(--ink-rgb), .07); }
       .menu .mi svg { width: 14px; height: 14px; visibility: hidden; }
       .menu .mi[aria-checked="true"] svg { visibility: visible; }
-      .menu .mi small { grid-column: 2; margin-top: 3px; font-size: 11px; color: rgba(255, 255, 255, .5); white-space: normal; line-height: 1.3; }
+      .menu .mi small { grid-column: 2; margin-top: 3px; font-size: 11px; color: rgba(var(--ink-rgb), .5); white-space: normal; line-height: 1.3; }
       .menu .mi[aria-disabled="true"] { opacity: .4; pointer-events: none; }
       .menu hr { border: 0; height: 1px; margin: 6px 4px; background: rgba(var(--ink-rgb), .1); }
       .tip, .toast {
-        position: fixed; z-index: 2147483647; display: none; color: #fff; background: rgba(30, 30, 30, .92);
+        position: fixed; z-index: 2147483647; display: none; color: rgb(var(--ink-rgb)); background: rgba(var(--elev-rgb), .92);
         font: 460 12px/1.2 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased;
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 10px 30px rgba(0, 0, 0, .3); pointer-events: none;
+        box-shadow: 0 0 0 1px rgba(var(--ink-rgb), .08), 0 10px 30px rgba(0, 0, 0, .3); pointer-events: none;
       }
       .tip { padding: 6px 8px; border-radius: 8px; white-space: nowrap; }
       .tip kbd { margin-left: 10px; }
       .toast { left: 50%; transform: translateX(-50%); padding: 8px 12px; border-radius: 10px; font-size: 13px; max-width: calc(100vw - 32px); text-align: center; }
-      .toast.err { color: #ff8a8a; }
+      .toast.err { color: var(--danger); }
       @media (prefers-reduced-motion: reduce) { .menu { animation-duration: 1ms; } .bar .tool, .bar .tool::before, .bar .tool > svg, .bar .notch::after { transition-duration: 1ms; } }
 
       .box { position: fixed; z-index: 2147483645; pointer-events: none; display: none; }
@@ -234,35 +319,35 @@
       .panel {
         /* Sits on top of the toolbar, in the same frosted pane, so tools and values read as one unit. */
         position: fixed; z-index: 2147483647; width: 260px; display: none; padding: 4px 0 8px;
-        border-radius: 14px; background: rgba(38, 38, 38, .8); color: rgba(255,255,255,.9);
+        border-radius: 14px; background: rgba(var(--elev-rgb), .8); color: rgba(var(--ink-rgb), .9);
         -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 1px rgba(255,255,255,.1), 0 10px 40px rgba(0,0,0,.25);
+        box-shadow: inset 0 1px 0 rgba(var(--ink-rgb), .06), 0 0 0 1px rgba(var(--ink-rgb), .1), 0 10px 40px rgba(0,0,0,.25);
         font: 460 12px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased; user-select: none;
       }
-      .panel header { padding: 10px 12px 8px; border-bottom: 1px solid rgba(255,255,255,.08); display: grid; gap: 4px; }
-      .panel .el { color: rgba(255,255,255,.9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .panel .comp { color: rgba(255,255,255,.4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .panel header { padding: 10px 12px 8px; border-bottom: 1px solid rgba(var(--ink-rgb), .08); display: grid; gap: 4px; }
+      .panel .el { color: rgba(var(--ink-rgb), .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .panel .comp { color: rgba(var(--ink-rgb), .4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .panel section { padding: 10px 12px 0; }
       .panel section[hidden] { display: none; }
-      .panel h4 { all: unset; display: flex; align-items: center; justify-content: space-between; height: 20px; margin-bottom: 6px; color: rgba(255,255,255,.5); }
+      .panel h4 { all: unset; display: flex; align-items: center; justify-content: space-between; height: 20px; margin-bottom: 6px; color: rgba(var(--ink-rgb), .5); }
       .panel .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
       .panel .row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
       .panel .row4[hidden] { display: none; }
       .panel .f {
         display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px; border-radius: 8px;
-        background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px transparent; transition: box-shadow .12s;
+        background: rgba(var(--ink-rgb), .05); box-shadow: inset 0 0 0 1px transparent; transition: box-shadow .12s;
       }
-      .panel .f:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+      .panel .f:hover { box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), .1); }
       .panel .f:focus-within { box-shadow: inset 0 0 0 1px ${BLUE}; }
-      .panel .k { flex: none; min-width: 12px; color: rgba(255,255,255,.4); cursor: ew-resize; text-align: center; }
+      .panel .k { flex: none; min-width: 12px; color: rgba(var(--ink-rgb), .4); cursor: ew-resize; text-align: center; }
       .panel .f input {
-        all: unset; min-width: 0; width: 100%; color: rgba(255,255,255,.9); font: inherit; font-variant-numeric: tabular-nums; cursor: text;
+        all: unset; min-width: 0; width: 100%; color: rgba(var(--ink-rgb), .9); font: inherit; font-variant-numeric: tabular-nums; cursor: text;
       }
-      .panel .f input:placeholder-shown { color: rgba(255,255,255,.4); }
-      .panel .indep { all: unset; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; cursor: pointer; color: rgba(255,255,255,.5); }
-      .panel .indep:hover { background: rgba(255,255,255,.05); color: rgba(255,255,255,.9); }
-      .panel .indep[aria-pressed="true"] { background: rgba(255,255,255,.1); color: #fff; }
+      .panel .f input:placeholder-shown { color: rgba(var(--ink-rgb), .4); }
+      .panel .indep { all: unset; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; cursor: pointer; color: rgba(var(--ink-rgb), .5); }
+      .panel .indep:hover { background: rgba(var(--ink-rgb), .05); color: rgba(var(--ink-rgb), .9); }
+      .panel .indep[aria-pressed="true"] { background: rgba(var(--ink-rgb), .1); color: rgb(var(--ink-rgb)); }
       .panel .indep svg { width: 14px; height: 14px; }
       @media (prefers-reduced-motion: reduce) { button, .handle, .band { transition: none; } }
     </style>
@@ -311,6 +396,50 @@
         </div>
       </section>
     </aside>
+    <style>
+      /* Comments: numbered pins on the page, one note box at a time. */
+      .pins { position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; }
+      .pin {
+        all: unset; position: fixed; pointer-events: auto; cursor: pointer; display: grid; place-items: center;
+        min-width: 22px; height: 22px; padding: 0 6px; margin: -11px 0 0 -11px; box-sizing: border-box; border-radius: 11px 11px 11px 3px;
+        background: ${BLUE}; color: #fff; font: 600 11px/1 "PTK Camera", ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums;
+        box-shadow: 0 0 0 1.5px #fff, 0 2px 8px rgba(0, 0, 0, .3); transition: scale .2s cubic-bezier(.3, 1.42, .4, 1);
+      }
+      .pin:hover, .pin[data-on] { scale: 1.12; }
+      .pin:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+      .note {
+        position: fixed; z-index: 2147483647; display: none; width: 280px; padding: 10px; border-radius: 14px;
+        background: rgba(var(--elev-rgb), .94); color: rgb(var(--ink-rgb)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+        box-shadow: inset 0 1px 0 rgba(var(--ink-rgb), .06), 0 0 0 1px rgba(var(--ink-rgb), .1), 0 10px 40px rgba(0, 0, 0, .3);
+        font: 460 13px/1.4 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased;
+        animation: rise .25s cubic-bezier(.22, 1.14, .36, 1) both;
+      }
+      .note .who { display: block; margin: 2px 2px 8px; color: rgba(var(--ink-rgb), .55); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .note q { display: block; margin: 0 2px 8px; padding-left: 8px; border-left: 2px solid #ffd60a; color: rgba(255, 255, 255, .8); font-size: 12px; quotes: none;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      .note textarea {
+        all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 64px; max-height: 200px; padding: 8px 10px; border-radius: 8px;
+        background: rgba(var(--ink-rgb), .08); color: rgb(var(--ink-rgb)); font: inherit; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto;
+      }
+      .note textarea::placeholder { color: rgba(var(--ink-rgb), .4); }
+      .note textarea:focus-visible { box-shadow: 0 0 0 1.5px ${BLUE}; }
+      .note .acts { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+      .note button { all: unset; box-sizing: border-box; cursor: pointer; height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+      .note button:focus-visible { outline: 2px solid ${BLUE}; outline-offset: 2px; }
+      .note .del { color: var(--danger); margin-right: auto; }
+      .note .cancel { margin-left: auto; color: rgba(var(--ink-rgb), .7); }
+      .note .del + .cancel { margin-left: 0; }
+      .note .cancel:hover { color: rgb(var(--ink-rgb)); }
+      .note .add { background: ${BLUE}; color: #fff; font-weight: 520; }
+      .note .add[aria-disabled="true"] { opacity: .4; pointer-events: none; }
+    </style>
+    <div class="pins"></div>
+    <div class="note" role="dialog" aria-label="Comment">
+      <span class="who"></span>
+      <q hidden></q>
+      <textarea rows="3" aria-label="Comment for your agent" placeholder="What should change here?"></textarea>
+      <div class="acts"><button class="del" type="button" hidden>Delete</button><button class="cancel" type="button">Cancel</button><button class="add" type="button">Add</button></div>
+    </div>
     <div class="bar" role="toolbar" aria-label="Design toolkit"></div>
     <div class="menu" role="menu"></div>
     <div class="tip" role="tooltip"></div>
@@ -329,6 +458,9 @@
   const mtag = root.querySelector(".mtag");
   const spaceLayer = root.querySelector(".space");
   const panel = root.querySelector(".panel");
+  const pins = root.querySelector(".pins");
+  const note = root.querySelector(".note");
+  const noteText = note.querySelector("textarea");
 
   const glyph = (d) => `<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="${d}"/></svg>`;
   const ICON = {
@@ -337,6 +469,9 @@
     type: glyph("M5 3.5h14A2.5 2.5 0 0 1 21.5 6v1.5a1.5 1.5 0 1 1-3 0v-1h-5v12h1.3a1.5 1.5 0 1 1 0 3H9.2a1.5 1.5 0 1 1 0-3h1.3v-12h-5v1a1.5 1.5 0 1 1-3 0V6A2.5 2.5 0 0 1 5 3.5"),
     radius: glyph("M4 21a1.5 1.5 0 0 1-1.5-1.5V12A9.5 9.5 0 0 1 12 2.5h7.5a1.5 1.5 0 0 1 0 3H12A6.5 6.5 0 0 0 5.5 12v7.5A1.5 1.5 0 0 1 4 21"),
     spacing: glyph("M6 2.5h12A3.5 3.5 0 0 1 21.5 6v12a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 18V6A3.5 3.5 0 0 1 6 2.5m0 3a.5.5 0 0 0-.5.5v12c0 .28.22.5.5.5h12a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5zm3.5 4h5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-4c0-.28.22-.5.5-.5"),
+    comment: glyph("M12 2.5c5.25 0 9.5 3.64 9.5 8.25S17.25 19 12 19c-.93 0-1.83-.11-2.68-.33l-4.1 2.36a1.2 1.2 0 0 1-1.77-1.27l.6-3.18C2.95 15.08 2.5 12.96 2.5 10.75 2.5 6.14 6.75 2.5 12 2.5"),
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="3"/><path d="M15.5 8.5V6.5a3 3 0 0 0-3-3h-6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h2"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   };
 
@@ -351,7 +486,14 @@
     ["text", "Text", "T"],
     ["radius", "Radius", "R"],
     ["spacing", "Spacing", "S"],
+    ["comment", "Comment", "C"],
   ];
+  let collapsed = false;
+  let barAt = null; // { cx, cy }: the bar's centre once dragged, null for the default spot (bottom centre)
+  try {
+    collapsed = localStorage.getItem("ptk-collapsed") === "on";
+    barAt = JSON.parse(localStorage.getItem("ptk-pos") || "null");
+  } catch {}
   let menuOpen = null; // null | "move" | "copy"
 
   const toolButton = (id, label, key) =>
@@ -363,7 +505,9 @@
         : toolButton(id, label, key),
     ).join("") +
     `<span class="split"></span>
-    <span class="slot"><button class="copy" aria-disabled="true"><span class="copy-label">Copy prompt</span><span class="badge" hidden></span></button><button class="notch" data-menu="copy" aria-haspopup="menu" aria-expanded="false" aria-label="Prompt options" data-tip="Prompt options"></button></span>`;
+    <span class="slot"><button class="copy" aria-disabled="true" aria-label="Copy prompt">${ICON.copy}<span class="badge" hidden></span></button><button class="notch" data-menu="copy" aria-haspopup="menu" aria-expanded="false" aria-label="Prompt options" data-tip="Prompt options"></button></span>
+    <button class="tool close" aria-label="Collapse toolbar" data-tip="Collapse">${ICON.close}</button>
+    <button class="expand" aria-label="Open design toolkit" data-tip="Design toolkit">${ICON.close}<span class="count"></span></button>`;
   const copyButton = bar.querySelector(".copy");
   const badge = bar.querySelector(".badge");
 
@@ -376,6 +520,16 @@
     copyButton.dataset.key = n ? `${MOD}↵` : "";
     badge.hidden = !n;
     badge.textContent = n;
+    /* A check for a moment after copying, the copy glyph otherwise. */
+    const glyphName = status === "done" && !n ? "check" : "copy";
+    if (copyButton.dataset.glyph !== glyphName) {
+      copyButton.dataset.glyph = glyphName;
+      copyButton.querySelector("svg").outerHTML = ICON[glyphName];
+    }
+    copyButton.classList.toggle("done", glyphName === "check");
+    bar.toggleAttribute("data-collapsed", collapsed);
+    bar.querySelector(".expand .count").textContent = n || "";
+    placeBar();
 
     /* Status floats above the toolbar instead of pushing the tools around. */
     const show = status === "done" || status === "error";
@@ -383,7 +537,7 @@
     toast.classList.toggle("err", status === "error");
     if (show) {
       const b = bar.getBoundingClientRect();
-      Object.assign(toast.style, { display: "block", bottom: `${innerHeight - b.top + 10}px` });
+      Object.assign(toast.style, { display: "block", left: `${b.left + b.width / 2}px`, ...nextToBar(10) });
     } else toast.style.display = "none";
     renderMenu();
   }
@@ -404,6 +558,11 @@
       menu.innerHTML = `<div class="mh">Prompt</div>
         ${item('role="menuitemcheckbox" data-set="tokens"', useTokens, "Use design tokens", useTokens ? "Round values to your existing tokens." : "Off: exact values, even without a token.")}
         <hr />
+        <div class="mh">Appearance</div>
+        ${item('role="menuitemradio" data-set="theme-dark"', theme === "dark", "Dark")}
+        ${item('role="menuitemradio" data-set="theme-light"', theme === "light", "Light")}
+        ${item('role="menuitemradio" data-set="theme-auto"', theme === "auto", "Auto", "Follow the system setting.")}
+        <hr />
         ${item('role="menuitem" data-set="revert"', false, `Revert all edits${n ? ` (${n})` : ""}`, "", n === 0)}`;
     }
     if (menu.style.display !== "block") {
@@ -416,7 +575,7 @@
     const b = bar.getBoundingClientRect();
     const w = menu.offsetWidth;
     const left = slot.left + slot.width / 2 - w / 2;
-    Object.assign(menu.style, { left: `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`, bottom: `${innerHeight - b.top + 8}px` });
+    Object.assign(menu.style, { left: `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`, ...nextToBar(8) });
   }
 
   const setMenu = (name) => {
@@ -428,6 +587,9 @@
   bar.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (dragged) return; // the release at the end of a drag is not a click
+    if (b.classList.contains("close")) return setCollapsed(true);
+    if (b.classList.contains("expand")) return setCollapsed(false);
     if (b.dataset.tool) setTool(tool === b.dataset.tool ? null : b.dataset.tool);
     else if (b.dataset.menu) setMenu(menuOpen === b.dataset.menu ? null : b.dataset.menu);
     else if (b.classList.contains("copy") && count()) copy();
@@ -441,6 +603,7 @@
     if (set === "absolute") moveAbsolute = true;
     if (set === "shot") moveScreenshot = !moveScreenshot;
     if (set === "tokens") useTokens = !useTokens;
+    if (set?.startsWith("theme-")) host.dataset.theme = theme = set.slice(6);
     if (set === "revert") {
       menuOpen = null;
       return revertAll();
@@ -449,6 +612,7 @@
       localStorage.setItem("ptk-tokens", useTokens ? "on" : "off");
       localStorage.setItem("ptk-move", moveAbsolute ? "absolute" : "flow");
       localStorage.setItem("ptk-shot", moveScreenshot ? "on" : "off");
+      localStorage.setItem("ptk-theme", theme);
     } catch {}
     if (set === "flow" || set === "absolute") menuOpen = null;
     render();
@@ -463,12 +627,14 @@
     const r = b.getBoundingClientRect();
     const bb = bar.getBoundingClientRect();
     const w = tip.offsetWidth;
-    Object.assign(tip.style, { left: `${Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8))}px`, bottom: `${innerHeight - bb.top + 8}px` });
+    Object.assign(tip.style, { left: `${Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8))}px`, ...nextToBar(8) });
   });
   bar.addEventListener("pointerleave", () => (tip.style.display = "none"));
 
   function setTool(next) {
+    if (next && collapsed) setCollapsed(false);
     if (editing) commit(editing);
+    if (composing) closeNote();
     select(null);
     hovered = null;
     tool = next;
@@ -480,7 +646,97 @@
     else paint();
   }
 
-  const fromToolbar = (e) => e.composedPath().includes(host);
+  /* ---------- toolbar position and collapse ---------- */
+
+  /* Popovers sit above the bar, or below it once it has been dragged into the top half of the window. */
+  function nextToBar(gap) {
+    const b = bar.getBoundingClientRect();
+    return b.top + b.height / 2 < innerHeight / 2 ? { top: `${b.bottom + gap}px`, bottom: "auto" } : { top: "auto", bottom: `${innerHeight - b.top + gap}px` };
+  }
+
+  /* Placed by its centre, so it grows and shrinks (count, collapse) around the same point, always on screen. */
+  function placeBar() {
+    if (!barAt) {
+      bar.removeAttribute("data-placed");
+      bar.style.left = bar.style.top = "";
+      return;
+    }
+    bar.setAttribute("data-placed", "");
+    const w = bar.offsetWidth;
+    const h = bar.offsetHeight;
+    const left = Math.max(8, Math.min(barAt.cx - w / 2, innerWidth - w - 8));
+    const top = Math.max(8, Math.min(barAt.cy - h / 2, innerHeight - h - 8));
+    bar.style.left = `${left}px`;
+    bar.style.top = `${top}px`;
+  }
+
+  const remember = () => {
+    try {
+      localStorage.setItem("ptk-collapsed", collapsed ? "on" : "off");
+      if (barAt) localStorage.setItem("ptk-pos", JSON.stringify(barAt));
+      else localStorage.removeItem("ptk-pos");
+    } catch {}
+  };
+
+  /* Collapsing puts the tools away; edits, pins and the count stay. */
+  function setCollapsed(next) {
+    collapsed = next;
+    if (collapsed) {
+      menuOpen = null;
+      tip.style.display = "none";
+      if (tool) setTool(null);
+    }
+    remember();
+    render();
+  }
+
+  /* Drag the bar from anywhere on it, buttons included. A press that barely moves is still a click. */
+  let dragged = false;
+  bar.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const b = bar.getBoundingClientRect();
+    const start = { x: e.clientX, y: e.clientY, cx: b.left + b.width / 2, cy: b.top + b.height / 2 };
+    dragged = false;
+    const move = (ev) => {
+      if (!dragged && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
+      if (!dragged) {
+        dragged = true;
+        bar.setAttribute("data-dragging", "");
+        menuOpen = null;
+        tip.style.display = "none";
+      }
+      barAt = { cx: start.cx + ev.clientX - start.x, cy: start.cy + ev.clientY - start.y };
+      render();
+    };
+    const up = () => {
+      removeEventListener("pointermove", move, true);
+      removeEventListener("pointerup", up, true);
+      removeEventListener("pointercancel", up, true);
+      bar.removeAttribute("data-dragging");
+      if (dragged) {
+        /* Keep the stored centre inside the window it was dropped in. */
+        const r = bar.getBoundingClientRect();
+        barAt = { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+        remember();
+        setTimeout(() => (dragged = false), 0); // the click that follows a drag does not toggle
+      }
+    };
+    /* On the window, so a fast drag that leaves the bar keeps going. */
+    addEventListener("pointermove", move, true);
+    addEventListener("pointerup", up, true);
+    addEventListener("pointercancel", up, true);
+  });
+  /* Double-click the bar's frame (not a button) to put it back at the bottom centre. */
+  bar.addEventListener("dblclick", (e) => {
+    if (e.target.closest("button")) return;
+    barAt = null;
+    remember();
+    render();
+  });
+  addEventListener("resize", () => placeBar());
+
+  /* The toolbar, plus anything the page marks data-toolkit-ignore (its own dev panels): tools pass clicks through to them. */
+  const fromToolbar = (e) => e.composedPath().some((n) => n === host || n.hasAttribute?.("data-toolkit-ignore"));
 
   /* ---------- hints for Claude: where the element sits ---------- */
 
@@ -620,7 +876,7 @@
     return start && start !== document.body && start !== document.documentElement ? start : null;
   }
   const pickFor = (node) =>
-    pick(node, tool === "radius" ? drawsBox : tool === "move" ? (el) => drawsBox(el) || hasOwnText(el) || MEDIA.has(el.tagName) : (el) => hasSpace(el) || drawsBox(el));
+    pick(node, tool === "radius" ? drawsBox : tool === "move" || tool === "comment" ? (el) => drawsBox(el) || hasOwnText(el) || MEDIA.has(el.tagName) : (el) => hasSpace(el) || drawsBox(el));
 
   function select(el) {
     el = (el && inflowOwner.get(el)) ?? el;
@@ -664,7 +920,7 @@
     const r = place(selBox, on ? selected : null);
     paintRadius(tool === "radius" ? r : null);
     paintSpacing(tool === "spacing" ? r : null);
-    paintPanel(tool === "move" ? null : r);
+    paintPanel(tool === "radius" || tool === "spacing" ? r : null);
     paintMove(tool === "move" ? r : null);
   }
 
@@ -682,7 +938,7 @@
     el.innerHTML = `${prefix}<input inputmode="decimal" aria-label="Value in px" spellcheck="false" value="${esc(f.read())}">`;
     const input = el.querySelector("input");
     field = { ...f, input, el };
-    input.focus();
+    focusField(input);
     input.select();
     input.addEventListener("keydown", onFieldKey);
     input.addEventListener("blur", () => field?.input === input && closeField(true));
@@ -1561,7 +1817,7 @@
     const w = panel.offsetWidth;
     Object.assign(panel.style, {
       left: `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`,
-      bottom: `${innerHeight - b.top + 8}px`,
+      ...nextToBar(8),
     });
     if (lastPanelFor !== selected) {
       lastPanelFor = selected;
@@ -1641,6 +1897,164 @@
   panel.addEventListener("pointerup", endScrub);
   panel.addEventListener("pointercancel", endScrub);
 
+  /* ================= Comment ================= */
+
+  /* Click an element (or select some text on it) to open the note box under it. Each comment gets a
+     numbered pin at the element's top-right corner; click a pin to edit or delete it. */
+  let commentDown = null; // where the press started, so a plain click and a text selection can be told apart
+
+  function openNote(el, { quote = "", comment = null } = {}) {
+    composing = { el, quote, comment };
+    note.querySelector(".who").textContent = short(el);
+    const q = note.querySelector("q");
+    q.hidden = !quote;
+    q.textContent = quote;
+    noteText.value = comment?.text ?? "";
+    note.querySelector(".del").hidden = !comment;
+    note.querySelector(".add").textContent = comment ? "Save" : "Add";
+    syncAdd();
+    note.style.display = "block";
+    select(el);
+    placeNote();
+    trackPins();
+    requestAnimationFrame(() => focusField(noteText));
+  }
+
+  function closeNote() {
+    composing = null;
+    note.style.display = "none";
+    giveFocusBack();
+    if (tool === "comment") select(null);
+    paintPins();
+  }
+
+  function saveNote() {
+    if (!composing) return;
+    const text = noteText.value.trim();
+    const { el, quote, comment } = composing;
+    if (comment && !text) comments.splice(comments.indexOf(comment), 1);
+    else if (comment) comment.text = text;
+    else if (text) {
+      /* Its visible text tells the agent which of several look-alike elements you meant. */
+      const own = (el.innerText || "").trim().replace(/\s+/g, " ");
+      comments.push({ el, text, quote, label: own.length > 60 ? `${own.slice(0, 60)}…` : own, ...describe(el) });
+    }
+    closeNote();
+    render();
+  }
+
+  function deleteNote() {
+    if (composing?.comment) comments.splice(comments.indexOf(composing.comment), 1);
+    closeNote();
+    render();
+  }
+
+  const syncAdd = () => note.querySelector(".add").setAttribute("aria-disabled", String(!noteText.value.trim() && !composing?.comment));
+
+  /* Under the element when it fits, above it otherwise, always on screen. */
+  function placeNote() {
+    if (!composing) return;
+    const el = composing.el;
+    if (!el.isConnected) return closeNote();
+    const r = el.getBoundingClientRect();
+    const w = note.offsetWidth;
+    const h = note.offsetHeight;
+    const below = r.bottom + 10;
+    const top = below + h < innerHeight - 72 ? below : Math.max(8, r.top - h - 10);
+    Object.assign(note.style, { left: `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`, top: `${Math.min(top, innerHeight - h - 8)}px` });
+  }
+
+  function paintPins() {
+    while (pins.children.length > comments.length) pins.lastChild.remove();
+    comments.forEach((c, i) => {
+      let pin = pins.children[i];
+      if (!pin) {
+        pin = document.createElement("button");
+        pin.className = "pin";
+        pin.type = "button";
+        pins.append(pin);
+      }
+      pin.textContent = i + 1;
+      pin.setAttribute("aria-label", `Comment ${i + 1}: ${c.text}`);
+      pin.title = c.text;
+      pin.toggleAttribute("data-on", composing?.comment === c);
+      const r = c.el.isConnected ? c.el.getBoundingClientRect() : null;
+      if (!r || (!r.width && !r.height)) return (pin.style.display = "none");
+      Object.assign(pin.style, { display: "grid", left: `${Math.max(14, Math.min(r.right, innerWidth - 14))}px`, top: `${Math.max(14, Math.min(r.top, innerHeight - 14))}px` });
+    });
+  }
+
+  /* Pins and the note box follow the page while there is anything to show. */
+  let pinsRunning = false;
+  function trackPins() {
+    if (pinsRunning) return;
+    pinsRunning = true;
+    const tick = () => {
+      paintPins();
+      placeNote();
+      if (comments.length || composing) requestAnimationFrame(tick);
+      else pinsRunning = false;
+    };
+    requestAnimationFrame(tick);
+  }
+
+  pins.addEventListener("click", (e) => {
+    const pin = e.target.closest(".pin");
+    if (!pin) return;
+    const c = comments[[...pins.children].indexOf(pin)];
+    if (c) openNote(c.el, { quote: c.quote, comment: c });
+  });
+  note.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.classList.contains("add")) saveNote();
+    else if (b.classList.contains("del")) deleteNote();
+    else closeNote();
+  });
+  noteText.addEventListener("input", syncAdd);
+
+  /* The press never reaches the page (so nothing loses focus), which also means the browser will not
+     select text. Dragging selects it by hand instead, caret to caret. */
+  const caretAt = (x, y) => {
+    if (document.caretPositionFromPoint) {
+      const p = document.caretPositionFromPoint(x, y);
+      return p && { node: p.offsetNode, offset: p.offset };
+    }
+    const r = document.caretRangeFromPoint?.(x, y);
+    return r && { node: r.startContainer, offset: r.startOffset };
+  };
+
+  function commentPress(e) {
+    /* A press elsewhere keeps what you typed so far, like clicking away from a sticky note. */
+    if (composing) noteText.value.trim() ? saveNote() : closeNote();
+    getSelection()?.removeAllRanges();
+    commentDown = { target: pickFor(e.target), from: caretAt(e.clientX, e.clientY), x: e.clientX, y: e.clientY };
+  }
+
+  function commentDrag(e) {
+    const d = commentDown;
+    if (!d?.from || Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) return;
+    const to = caretAt(e.clientX, e.clientY);
+    if (!to || host.contains(to.node)) return;
+    try {
+      getSelection().setBaseAndExtent(d.from.node, d.from.offset, to.node, to.offset);
+    } catch {}
+  }
+
+  function commentRelease() {
+    if (!commentDown) return;
+    const { target } = commentDown;
+    commentDown = null;
+    const sel = getSelection();
+    const quote = sel && !sel.isCollapsed ? sel.toString().trim().replace(/\s+/g, " ") : "";
+    if (quote) {
+      let anchor = sel.getRangeAt(0).commonAncestorContainer;
+      if (anchor.nodeType !== 1) anchor = anchor.parentElement;
+      const el = pickFor(anchor) ?? target;
+      if (el) openNote(el, { quote: quote.length > 280 ? `${quote.slice(0, 280)}…` : quote });
+    } else if (target) openNote(target);
+  }
+
   /* ================= shared: markers, revert, prompt, copy ================= */
 
   const mark = (el) => el.toggleAttribute("data-ptk-edited", textEdits.has(el) || radiusEdits.has(el) || spaceEdits.has(el) || moveEdits.has(el));
@@ -1651,6 +2065,7 @@
     for (const [el, e] of textEdits) restore(el, e.snapshot);
     for (const [el, e] of radiusEdits) el.style.borderRadius = e.inline;
     for (const [el, e] of moveEdits) unmove(el, e);
+    if (composing) closeNote();
     for (const [el, e] of spaceEdits) {
       for (const [prop, pe] of e.props) {
         if (pe.inline) el.style.setProperty(prop, pe.inline);
@@ -1669,6 +2084,8 @@
     radiusEdits.clear();
     spaceEdits.clear();
     moveEdits.clear();
+    comments.length = 0;
+    paintPins();
     els.forEach(mark);
   }
 
@@ -1729,7 +2146,20 @@
       sections.push(`Positioned absolutely\n\n${list.join("\n\n")}${shotAttached ? "\n\nI attached a screenshot. Each move has its own colour: the dashed box labelled “Move N · from” is where it was, the outlined element labelled “Move N” is where I put it, and an arrow in the same colour joins them." : ""}`);
       how.push(`Absolute moves: I chose free positioning for these. Make each position: absolute inside the named container (give the container position: relative if it has none) at those offsets, taking it out of the flow. If it moved to another container, move its JSX there too. ${tokenRule("spacing")}`);
     }
-    return `I tweaked the design directly in the browser on ${location.href}. Apply these changes to the source code.
+    if (comments.length) {
+      const list = comments.map((c, k) => {
+        const n = ++i;
+        const quote = c.quote ? `\n   on the text: ${JSON.stringify(c.quote)}` : "";
+        const label = !c.quote && c.label ? `\n   element text: ${JSON.stringify(c.label)}` : "";
+        return `${n}. <${c.tag}> ${where(c)}${n !== k + 1 ? ` (pin ${k + 1})` : ""}${label}${quote}\n   comment: ${c.text.replace(/\n/g, "\n            ")}`;
+      });
+      sections.push(`Comments\n\n${list.join("\n\n")}`);
+      how.push(`Comments: these are my notes in my own words, not exact values. Do what each one asks in the source with the smallest change that does it. If a note is about something every instance shares (all menu items, all cards), change the shared component; otherwise change only this one. If a note is unclear or would need a bigger redesign, ask me before guessing.`);
+    }
+    const intro = comments.length === count()
+      ? `I left comments on ${location.href} while reviewing it in the browser. Act on them in the source code.`
+      : `I tweaked the design directly in the browser on ${location.href}. Apply these changes to the source code.`;
+    return `${intro}
 
 ${sections.join("\n\n")}
 
@@ -1740,6 +2170,7 @@ ${how.join("\n\n")}`;
 
   async function copy() {
     if (editing) commit(editing);
+    if (composing) saveNote();
     closeField(true);
     const n = count();
     if (!n) return;
@@ -1763,7 +2194,10 @@ ${how.join("\n\n")}`;
       shotFailed = true; // declined, or a browser that cannot capture (like an embedded preview)
     }
     try {
-      await navigator.clipboard.writeText(prompt());
+      const text = prompt();
+      await navigator.clipboard.writeText(text);
+      /* Lets a page see what was copied (the test page records each prompt). */
+      window.dispatchEvent(new CustomEvent("design-toolkit:copy", { detail: { prompt: text, edits: n } }));
       pendingPrompt = false;
       shotAttached = false;
     } catch {
@@ -1798,6 +2232,9 @@ ${how.join("\n\n")}`;
       const el = pickText(e.target);
       if (el) begin(el);
       else if (editing) commit(editing);
+    } else if (tool === "comment") {
+      e.preventDefault();
+      commentPress(e);
     } else {
       e.preventDefault();
       /* Move: pressing on the selection (or anything inside it) drags it; elsewhere picks and drags the new one. */
@@ -1807,6 +2244,7 @@ ${how.join("\n\n")}`;
     }
   }, true);
   window.addEventListener("pointerup", () => {
+    if (tool === "comment") return commentRelease();
     if (drag?.kind === "flow") return dropFlow(false);
     if (drag?.kind !== "move") return;
     drag = null;
@@ -1815,9 +2253,11 @@ ${how.join("\n\n")}`;
   ["mousedown", "mouseup", "pointerup", "click", "auxclick", "dblclick", "submit"].forEach((t) => window.addEventListener(t, swallow, true));
 
   window.addEventListener("pointermove", (e) => {
+    if (commentDown) commentDrag(e);
     if (drag?.kind === "move") return dragMove(e);
     if (drag?.kind === "flow") return dragFlow(e);
-    if (!boxTool() || drag || fromToolbar(e)) return;
+    if (!boxTool() || drag) return;
+    if (fromToolbar(e)) return void (hovered = null);
     hoverBand = null;
     hovered = pickFor(e.target);
   }, true);
@@ -1830,6 +2270,21 @@ ${how.join("\n\n")}`;
   }, true);
 
   window.addEventListener("keydown", (e) => {
+    if (composing && e.composedPath().includes(note)) {
+      e.stopPropagation(); // typing a note never triggers tools or the page's shortcuts
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeNote();
+      } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        saveNote();
+        if (count()) copy();
+      } else if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        saveNote();
+      }
+      return;
+    }
     if (menuOpen && e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
@@ -1901,11 +2356,14 @@ ${how.join("\n\n")}`;
     }
     if (e.altKey) return;
     const key = e.key.toLowerCase();
-    const shortcuts = { t: "text", r: "radius", s: "spacing", v: "move" };
+    const shortcuts = { t: "text", r: "radius", s: "spacing", v: "move", c: "comment" };
     if (shortcuts[key] && !e.shiftKey) {
       e.preventDefault();
+      e.stopPropagation();
       setTool(tool === shortcuts[key] ? null : shortcuts[key]);
     } else if (e.key === "Escape" && tool) {
+      e.preventDefault();
+      e.stopPropagation();
       if (drag?.kind === "flow") dropFlow(true);
       else if (drag?.kind === "move") {
         setMove(drag.el, drag.start[0], drag.start[1]); // cancel the drag in progress
