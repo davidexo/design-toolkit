@@ -175,6 +175,7 @@
         max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none;
       }
       /* Dragged somewhere: placed by its top-left corner (see placeBar). */
+      .bar:not([data-placed]) { left: calc((100vw - var(--dock, 0px)) / 2); }
       .bar[data-placed] { transform: none; bottom: auto; }
       .bar { touch-action: none; } /* the whole bar drags, buttons included */
       .bar[data-dragging], .bar[data-dragging] * { cursor: grabbing !important; }
@@ -344,15 +345,16 @@
       .insert { position: fixed; z-index: 2147483646; display: none; pointer-events: none; border-radius: 2px; background: ${BLUE}; box-shadow: 0 0 0 1px rgba(255,255,255,.6); }
 
       .panel {
-        /* Sits on top of the toolbar, in the same frosted pane, so tools and values read as one unit. */
-        position: fixed; z-index: 2147483647; width: 260px; display: none; padding: 4px 0 8px;
-        border-radius: 14px; background: rgba(var(--elev-rgb), .8); color: rgba(var(--ink-rgb), .9);
-        -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%);
-        box-shadow: inset 0 1px 0 rgba(var(--ink-rgb), .06), 0 0 0 1px rgba(var(--ink-rgb), .1), 0 10px 40px rgba(0,0,0,.25);
+        /* A side panel docked to the right edge, like Figma's design panel. The page is pushed left to make room. */
+        position: fixed; z-index: 2147483646; top: 0; right: 0; bottom: 0; width: 260px; display: none; padding: 4px 0 16px;
+        background: rgb(var(--elev-rgb)); color: rgba(var(--ink-rgb), .9);
+        box-shadow: inset 1px 0 0 rgba(var(--ink-rgb), .1);
         font: 460 12px/1 "PTK Camera", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.0025em;
         -webkit-font-smoothing: antialiased; user-select: none;
-        max-height: calc(100vh - 96px); overflow: auto; overscroll-behavior: contain;
+        overflow: auto; overscroll-behavior: contain;
       }
+      .panel .hint { margin: 0; padding: 12px; color: rgba(var(--ink-rgb), .5); line-height: 1.4; }
+      .panel[data-empty] section, .panel:not([data-empty]) .hint { display: none; }
       .panel header { padding: 10px 12px 8px; border-bottom: 1px solid rgba(var(--ink-rgb), .08); display: grid; gap: 4px; }
       .panel .el { color: rgba(var(--ink-rgb), .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .panel .comp { color: rgba(var(--ink-rgb), .4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -398,6 +400,7 @@
     <div class="mtag"></div>
     <aside class="panel" aria-label="Selected element">
       <header><span class="el"></span><span class="comp"></span></header>
+      <p class="hint">Select an element to edit its radius, spacing, fill and border.</p>
       <section data-sec="radius">
         <h4>Radius</h4>
         <div class="row"><label class="f" data-f="radius" title="Corner radius"><span class="k">◜</span><input inputmode="decimal" aria-label="Corner radius"></label></div>
@@ -723,8 +726,8 @@
     else document.documentElement.removeAttribute("data-ptk-tool");
     if (status !== "idle") status = "idle";
     render();
+    paint(); // docks or undocks the panel right away
     if (boxTool()) requestAnimationFrame(follow);
-    else paint();
   }
 
   /* ---------- toolbar position and collapse ---------- */
@@ -745,7 +748,7 @@
     bar.setAttribute("data-placed", "");
     const w = bar.offsetWidth;
     const h = bar.offsetHeight;
-    const left = Math.max(8, Math.min(barAt.cx - w / 2, innerWidth - w - 8));
+    const left = Math.max(8, Math.min(barAt.cx - w / 2, innerWidth - dockWidth() - w - 8));
     const top = Math.max(8, Math.min(barAt.cy - h / 2, innerHeight - h - 8));
     bar.style.left = `${left}px`;
     bar.style.top = `${top}px`;
@@ -1039,7 +1042,7 @@
     const r = place(selBox, on ? selected : null);
     paintRadius(tool === "radius" ? r : null);
     paintSpacing(tool === "spacing" ? r : null);
-    paintPanel(tool === "radius" || tool === "spacing" ? r : null);
+    paintPanel();
     paintMove(tool === "move" ? r : null);
     paintFigma();
   }
@@ -2094,23 +2097,42 @@ Use the Figma MCP server for this (its generate_figma_design capture), not a scr
   }
 
   let lastPanelFor = null;
-  function paintPanel(r) {
-    if (!r || !boxTool()) {
+  /* Dock: while Move, Radius or Spacing is on, the panel sits on the right and the page makes room for it.
+     It docks with the tool, not the selection, so the page shifts once rather than on every click. */
+  const DOCK = 260;
+  let docked = null; // the page's own inline margin-right while docked
+  function setDock(on) {
+    const html = document.documentElement;
+    if (on && docked === null) {
+      docked = html.style.getPropertyValue("margin-right");
+      html.style.setProperty("margin-right", `${DOCK}px`, "important");
+      bar.style.setProperty("--dock", `${DOCK}px`);
+    } else if (!on && docked !== null) {
+      if (docked) html.style.setProperty("margin-right", docked);
+      else html.style.removeProperty("margin-right");
+      docked = null;
+      bar.style.removeProperty("--dock");
+    }
+  }
+  const dockWidth = () => (docked === null ? 0 : DOCK);
+
+  function paintPanel() {
+    const on = tool === "move" || tool === "radius" || tool === "spacing";
+    setDock(on);
+    if (!on) {
       panel.style.display = "none";
       lastPanelFor = null;
       return;
     }
-    if (menuOpen) {
-      panel.style.display = "none"; // an open option menu takes the space above the bar
+    panel.style.display = "block";
+    const has = !!selected?.isConnected;
+    panel.toggleAttribute("data-empty", !has);
+    if (!has) {
+      panel.querySelector(".el").textContent = "No selection";
+      panel.querySelector(".comp").textContent = "";
+      lastPanelFor = null;
       return;
     }
-    panel.style.display = "block";
-    const b = bar.getBoundingClientRect();
-    const w = panel.offsetWidth;
-    Object.assign(panel.style, {
-      left: `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`,
-      ...nextToBar(8),
-    });
     if (lastPanelFor !== selected) {
       lastPanelFor = selected;
       const d = describe(selected);

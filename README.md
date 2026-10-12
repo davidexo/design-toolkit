@@ -60,7 +60,7 @@ Everything snaps to a 2px grid, typed values included (13 becomes 14).
 | `↵` / `⇧↵` / `⇥` / `⇧⇥` (Spacing) | select first child / parent / next / previous sibling |
 | `Esc` | deselect, then leave the tool |
 
-**Panel.** While Radius or Spacing has a selection, a panel shows the element and its
+**Panel.** While Move, Radius or Spacing is on, a panel docks on the right (the page moves over to make room) and shows the selected element and its
 Radius, Gap, Padding (horizontal and vertical, or all four sides via the corner button), Margin, Fill and Border
 (width and colour; click a swatch for the colour picker, or type hex, rgba or none).
 Type a value, step with `↑` `↓`, `Tab` between fields, or drag a field's label to scrub, like Figma's
